@@ -1,0 +1,67 @@
+{
+  "title": "光谷生物医药科创中心·园区全生命周期服务（整集配音）",
+  "episode": "guanggu-bio-lifecycle",
+  "note": "id 为整集脚本时间线顺序（01…），文件名 {id}_{owner|advisor}.* 按字典序即播放序。价值旁白与 CTA 用招商顾问声，不出镜。",
+  "voice_map": {
+    "招商顾问": "female-zhao-shang-lead",
+    "企业主": "ai-enterprise-owner"
+  },
+  "lines": [
+    {
+      "id": "01",
+      "segment": "hook",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "入驻产业园以后，除了厂房，园区还能提供什么？"
+    },
+    {
+      "id": "02",
+      "segment": "hook",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "从日常运营到政策、融资、人才，企业不同阶段需要的服务，这里都在完善。"
+    },
+    {
+      "id": "03",
+      "segment": "hook",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "我们缺的从来不是空间，是资源。"
+    },
+    {
+      "id": "04",
+      "segment": "hook",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "园区会陪着企业一路走。"
+    },
+    {
+      "id": "05",
+      "segment": "mid-spec",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "东湖高新集团深耕园区运营三十多年，服务过\"一万两千\"多家科技型企业。围绕企业全生命周期，我们搭起五大服务平台：金融支持、产业整合、产业服务、产业招商和智慧园区。落到日常，是物业、财税、法务的基础运营；是共享办公、共享空间的资产运营；是产业大数据的数字运营；更是科研链、产业链、人才链、政策链的产业运营——企业缺什么，我们帮着补什么。"
+    },
+    {
+      "id": "06",
+      "segment": "sublime",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "原来看园区，不能只看厂房好不好。"
+    },
+    {
+      "id": "07",
+      "segment": "sublime",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "对。好的园区提供的不只是空间，是陪企业一路成长的资源。"
+    },
+    {
+      "id": "08",
+      "segment": "cta",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "想了解园区能为你的企业做什么？欢迎来光谷生物医药科创中心实地聊聊。想领取服务体系资料，评论区留言或留资，我们一对一为您介绍。"
+    }
+  ]
+}

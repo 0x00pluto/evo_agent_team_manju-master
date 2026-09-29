@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+cache/
+temp/
+output/
+.env
+.env.*
+!.env.example
+
+# assets/ 大媒体默认不入库；小文本 / 小图可提交
+assets/**/*.pdf
+assets/**/*.mp4
+assets/**/*.mov
+assets/**/*.mkv
+assets/**/*.zip
+assets/**/*.7z
+assets/**/*.wav
+assets/**/*.mp3

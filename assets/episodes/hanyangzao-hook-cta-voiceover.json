@@ -1,0 +1,74 @@
+{
+  "title": "汉阳造·主城区生产空间版（整集配音）",
+  "episode": "hanyangzao-hook-cta",
+  "note": "id 为整集脚本时间线顺序（01…），文件名 {id}_{owner|advisor}.* 按字典序即播放序",
+  "voice_map": {
+    "招商顾问": "female-zhao-shang-lead",
+    "企业主": "ai-enterprise-owner"
+  },
+  "lines": [
+    {
+      "id": "01",
+      "segment": "hook",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "公司不想搬出主城区，还能找到适合生产的厂房吗？"
+    },
+    {
+      "id": "02",
+      "segment": "hook",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "可以。关键要找既能生产，又能兼顾员工通勤和企业接待的园区。"
+    },
+    {
+      "id": "03",
+      "segment": "hook",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "真有这种地方？"
+    },
+    {
+      "id": "04",
+      "segment": "mid-pain",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "很多企业和您一样——想留在主城，可要么没地，要么是旧厂房，条件撑不起生产。搬远了，员工不愿跟、客户嫌太偏，两头都难。"
+    },
+    {
+      "id": "05",
+      "segment": "mid-pain",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "可不就是这么回事。"
+    },
+    {
+      "id": "06",
+      "segment": "mid-spec",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "不用纠结。东湖高新·汉阳造，位于汉阳主城区黄金口片区，可便捷衔接武汉主城交通路网。项目距江汉十桥约\"五分钟\"车程，通车后仅需\"十分钟\"即可抵达硚口核心区域；周边设有地铁\"四号线\"黄金口站、孟家铺站，规划中的地铁\"二十三号线\"什湖站可直达武汉西站，项目距武汉西站仅约\"三公里\"。\n园区首层高\"七点二\"米，采用实心地面，可满足生产设备直接进场；标准层高\"四点五\"米，承重\"八百公斤\"每平方米，兼顾生产、研发与办公需求。作为汉阳主城区目前可分割销售、独立办证的专业园区，项目约\"十五分钟\"可达王家湾商圈，周边商业、医疗等配套成熟，既方便员工通勤与生活，也便于企业接待客户。"
+    },
+    {
+      "id": "07",
+      "segment": "sublime",
+      "speaker": "企业主",
+      "voice_slug": "ai-enterprise-owner",
+      "text": "原来留在主城区，不是将就。"
+    },
+    {
+      "id": "08",
+      "segment": "sublime",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "对。主城区的产业空间，是稀缺资源。留下来，企业才能贴着城市的人才、配套和客户，稳稳扎根。"
+    },
+    {
+      "id": "09",
+      "segment": "cta",
+      "speaker": "招商顾问",
+      "voice_slug": "female-zhao-shang-lead",
+      "text": "想把厂房留在主城区，欢迎来东湖高新·汉阳造实地看看。想领取项目资料，评论区留言或留资，我们一对一为您安排。"
+    }
+  ]
+}

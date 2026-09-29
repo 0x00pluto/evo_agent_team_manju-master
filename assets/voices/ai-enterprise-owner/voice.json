@@ -1,0 +1,11 @@
+{
+  "slug": "ai-enterprise-owner",
+  "name": "AI企业主",
+  "voice_id": "AiEnterpriseOwner",
+  "model": "speech-2.8-hd",
+  "sample": "voice.mp3",
+  "source_wav": "/Users/peng.zhi/Downloads/视频节点 1_音轨_截取.wav",
+  "cloned_at": "2026-09-17T13:43:54.135Z",
+  "need_noise_reduction": true,
+  "need_volume_normalization": false
+}

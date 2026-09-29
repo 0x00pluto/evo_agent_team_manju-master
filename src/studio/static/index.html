@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>漫剧操作台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: "#F4F1EA",
+            ink: "#1C1915",
+            brass: "#8C6A3D",
+          },
+        },
+      },
+      corePlugins: { preflight: false },
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+  <style>
+    :root {
+      --bg: #F4F1EA;
+      --surface: #FBF9F4;
+      --ink: #1C1915;
+      --muted: #6B645B;
+      --line: #E2D9CC;
+      --brass: #8C6A3D;
+      --brass-ink: #FFF8EE;
+      --danger: #8E2F24;
+      color-scheme: light;
+    }
+    [x-cloak] { display: none !important; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(140, 106, 61, 0.06), transparent 220px),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, textarea, a { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: 0.45; }
+    :focus-visible {
+      outline: 2px solid var(--brass);
+      outline-offset: 2px;
+    }
+    .serif { font-family: "Noto Serif SC", "Songti SC", serif; }
+    .mono {
+      font-family: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+      font-size: 0.78rem;
+      line-height: 1.55;
+    }
+    .topbar {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 1.1rem 1.25rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ghost {
+      min-height: 44px;
+      padding: 0 0.9rem;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+    }
+    .shell { max-width: 880px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+    .intake {
+      min-height: calc(100vh - 6.5rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .intake .composer {
+      position: static;
+      width: 100%;
+      margin: 0;
+      transform: translateY(-2rem);
+    }
+    .intake.stacked {
+      align-items: flex-start;
+      padding-top: 1.5rem;
+    }
+    .intake.stacked .composer { transform: none; }
+    .kicker {
+      margin: 0 0 0.35rem;
+      color: var(--brass);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+    }
+    h1 {
+      margin: 0;
+      font-size: 2.15rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+    .lead { margin: 0.7rem 0 0; color: var(--muted); max-width: 38rem; }
+    .recent { list-style: none; margin: 1.75rem 0 0; padding: 0; }
+    .recent button {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+      gap: 1rem;
+      text-align: left;
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      padding: 0.85rem 0;
+      color: var(--ink);
+      min-height: 44px;
+    }
+    .recent button:hover { color: var(--brass); }
+    .recent small { color: var(--muted); }
+    .composer {
+      position: sticky;
+      bottom: 0.75rem;
+      margin-top: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 40px rgba(28, 25, 21, 0.06);
+      padding: 0.75rem;
+    }
+    .composer.drag { border-color: var(--brass); }
+    textarea {
+      width: 100%;
+      min-height: 7.5rem;
+      resize: vertical;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      padding: 0.35rem 0.35rem 0.5rem;
+    }
+    textarea::placeholder, .url::placeholder { color: #9A9186; }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.35rem 0.35rem 0.15rem;
+    }
+    .field span {
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .url {
+      width: 100%;
+      min-height: 44px;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      padding: 0.35rem 0;
+    }
+    .choices {
+      list-style: none;
+      margin: 0.35rem 0 0;
+      padding: 0.2rem 0.35rem 0;
+      max-height: 46vh;
+      overflow: auto;
+    }
+    .choices li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.7rem 0;
+      border-top: 1px solid var(--line);
+    }
+    .choices strong { font-weight: 600; }
+    .choices p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.88rem; }
+    .seg { display: flex; gap: 0.35rem; }
+    .seg label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      min-height: 44px;
+      padding: 0 0.7rem;
+      border: 1px solid var(--line);
+      color: var(--ink);
+    }
+    .seg label:has(input:checked) {
+      border-color: var(--brass);
+      color: var(--brass);
+    }
+    @media (max-width: 700px) {
+      .choices li { grid-template-columns: 1fr; }
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding-top: 0.35rem;
+    }
+    .file {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-height: 44px;
+      padding: 0 0.85rem;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+    }
+    .file input { display: none; }
+    .chip {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .chip button {
+      border: 0;
+      background: transparent;
+      color: var(--brass);
+      min-height: 44px;
+      padding: 0 0.25rem;
+    }
+    .go {
+      margin-left: auto;
+      min-height: 44px;
+      padding: 0 1.15rem;
+      border: 0;
+      background: var(--brass);
+      color: var(--brass-ink);
+      font-weight: 600;
+    }
+    .err { color: var(--danger); margin: 0.6rem 0 0; white-space: pre-wrap; }
+    .status { color: var(--muted); margin: 0.45rem 0 0; }
+    .cut {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1.25rem 0 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+    }
+    @media (max-width: 700px) { .cut { grid-template-columns: 1fr; } }
+    .cut h2, .step h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .cut li { margin: 0.2rem 0; }
+    .step { margin: 0 0 2.25rem; }
+    .step > h2 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 1.35rem;
+      color: var(--ink);
+      letter-spacing: 0;
+      font-weight: 600;
+    }
+    .card {
+      border-top: 1px solid var(--line);
+      padding: 0.9rem 0 1rem;
+    }
+    .card-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.55rem;
+    }
+    .card-head strong { font-weight: 600; }
+    .card-head span { color: var(--muted); font-size: 0.85rem; }
+    .copy {
+      flex: none;
+      min-height: 44px;
+      padding: 0 0.8rem;
+      border: 1px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+    }
+    .copy.on { border-color: var(--brass); color: var(--brass); }
+    pre.prompt {
+      margin: 0;
+      max-height: 11rem;
+      overflow: auto;
+      white-space: pre-wrap;
+      background: #F7F3EC;
+      padding: 0.8rem 0.9rem;
+      color: var(--ink);
+    }
+    .voice-row {
+      display: grid;
+      grid-template-columns: 3.2rem 1fr;
+      gap: 0.75rem;
+      padding: 0.85rem 0;
+      border-top: 1px solid var(--line);
+    }
+    audio { width: 100%; height: 36px; }
+    .voice-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.45rem; }
+    .voice-actions a, .tools a, .tools button, .back {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 0.85rem;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0 0.2rem; }
+    .back { margin-top: 0.5rem; }
+    .voice-text { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.92rem; }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body x-data="studio()" x-init="init()" x-cloak>
+  <header class="topbar">
+    <p class="kicker" style="margin:0">AI漫剧大师</p>
+    <button type="button" class="ghost" @click="openHistory()">历史记录</button>
+  </header>
+  <main class="shell">
+    <template x-if="screen === 'intake'">
+      <div class="intake" :class="sections.length ? 'stacked' : ''">
+        <form class="composer" :class="dragging ? 'drag' : ''" @submit.prevent="start"
+              @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
+          <label class="field">
+            <span>飞书文档</span>
+            <input class="url" type="url" x-model="feishuUrl" placeholder="粘贴飞书 wiki 或 docx 链接" @input="onUrlInput" />
+          </label>
+          <div class="bar">
+            <button type="button" class="ghost" @click="readFeishu" :disabled="busy || !feishuOk">读取</button>
+            <label class="file">
+              上传脚本
+              <input type="file" accept=".md,.markdown,.txt,text/plain" @change="onFile($event)" />
+            </label>
+            <span class="chip" x-show="fileName">
+              <span x-text="fileName"></span>
+              <button type="button" @click="clearFile">移除</button>
+            </span>
+          </div>
+          <ul class="choices" x-show="sections.length">
+            <template x-for="sec in sections" :key="sec.index">
+              <li>
+                <div>
+                  <strong x-text="sec.title"></strong>
+                  <p x-text="sec.preview"></p>
+                </div>
+                <div class="seg">
+                  <label><input type="radio" :name="'mode-' + sec.index" value="shot" x-model="sec.mode" />分镜演绎</label>
+                  <label><input type="radio" :name="'mode-' + sec.index" value="voice" x-model="sec.mode" />只配音</label>
+                </div>
+              </li>
+            </template>
+          </ul>
+          <div class="bar">
+            <button class="go" type="submit" :disabled="busy || !canStart" x-text="busy ? '进行中' : '开始'"></button>
+          </div>
+          <p class="status" x-show="statusText" x-text="statusText"></p>
+          <p class="err" x-show="error" x-text="error"></p>
+        </form>
+      </div>
+    </template>
+
+    <template x-if="screen === 'history'">
+      <div>
+        <button type="button" class="back" @click="closeHistory()">返回</button>
+        <h1 class="serif">历史记录</h1>
+        <ul class="recent" x-show="recent.length">
+          <template x-for="item in recent" :key="item.theme">
+            <li>
+              <button type="button" @click="openBench(item.theme)">
+                <span x-text="item.title"></span>
+                <small x-text="item.theme"></small>
+              </button>
+            </li>
+          </template>
+        </ul>
+        <p class="lead" x-show="!recent.length">还没有生成过的集。</p>
+      </div>
+    </template>
+
+    <template x-if="screen === 'bench' && bench">
+      <div>
+        <h1 class="serif" x-text="bench.title"></h1>
+        <button type="button" class="back" @click="screen = 'intake'">回到对话框</button>
+        <p class="err" x-show="error" x-text="error"></p>
+        <p class="err" x-show="benchVoiceError" x-text="benchVoiceError"></p>
+        <div class="cut">
+          <div>
+            <h2>出镜</h2>
+            <ul>
+              <template x-for="row in bench.summary.shots" :key="row.id">
+                <li><span x-text="row.id"></span>　<span x-text="row.preview"></span></li>
+              </template>
+              <li x-show="!bench.summary.shots.length">这一集没有出镜分镜</li>
+            </ul>
+          </div>
+          <div>
+            <h2>只配音</h2>
+            <ul>
+              <template x-for="row in bench.summary.voice_only" :key="row.id">
+                <li><span x-text="row.id"></span>　<span x-text="row.preview"></span></li>
+              </template>
+              <li x-show="!bench.summary.voice_only.length">没有单独的旁白条</li>
+            </ul>
+          </div>
+        </div>
+
+        <section class="step">
+          <h2>1　人物</h2>
+          <template x-for="(block, i) in bench.characters" :key="block.name + block.kind">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <strong x-text="block.name"></strong>
+                  <span x-text="block.kind"></span>
+                </div>
+                <button type="button" class="copy" :class="copiedKey === 'c' + i ? 'on' : ''" @click="copy('c' + i, block.text)" x-text="copiedKey === 'c' + i ? '已复制' : '复制'"></button>
+              </div>
+              <pre class="mono prompt" x-text="block.text"></pre>
+            </article>
+          </template>
+        </section>
+
+        <section class="step">
+          <h2>2　场景</h2>
+          <template x-for="(block, i) in bench.scenes" :key="block.id">
+            <article class="card">
+              <div class="card-head">
+                <div>
+                  <strong x-text="block.label"></strong>
+                </div>
+                <button type="button" class="copy" :class="copiedKey === 's' + i ? 'on' : ''" @click="copy('s' + i, block.text)" x-text="copiedKey === 's' + i ? '已复制' : '复制'"></button>
+              </div>
+              <pre class="mono prompt" x-text="block.text"></pre>
+            </article>
+          </template>
+        </section>
+
+        <section class="step">
+          <h2>3　分镜</h2>
+          <p class="lead">按顺序贴进 LibTV。</p>
+          <template x-for="block in bench.shots" :key="block.id">
+            <article class="card">
+              <div class="card-head">
+                <strong x-text="block.id"></strong>
+                <button type="button" class="copy" :class="copiedKey === block.id ? 'on' : ''" @click="copy(block.id, block.text)" x-text="copiedKey === block.id ? '已复制' : '复制'"></button>
+              </div>
+              <pre class="mono prompt" x-text="block.text"></pre>
+            </article>
+          </template>
+        </section>
+
+        <section class="step">
+          <h2>4　配音</h2>
+          <div class="tools">
+            <button type="button" @click="reveal">在访达中打开</button>
+            <a :href="'/api/voiceover/' + bench.theme + '.zip'">下载全部</a>
+          </div>
+          <p class="status" x-show="revealMsg" x-text="revealMsg"></p>
+          <template x-for="line in bench.voice" :key="line.file">
+            <div class="voice-row">
+              <strong x-text="line.id"></strong>
+              <div>
+                <div x-text="line.speaker"></div>
+                <audio controls :src="line.url"></audio>
+                <p class="voice-text" x-text="line.text"></p>
+                <div class="voice-actions">
+                  <a :href="line.url" :download="line.file">下载</a>
+                </div>
+              </div>
+            </div>
+          </template>
+          <p class="status" x-show="!bench.voice.length">还没有 MP3。</p>
+        </section>
+      </div>
+    </template>
+  </main>
+  <p class="sr" style="position:absolute;left:-9999px" aria-live="polite" x-text="live"></p>
+
+  <script>
+    const STATUS = {
+      queued: "排队",
+      compiling: "正在按勾选整理出镜和配音",
+      prompting: "正在写提示词",
+      voicing: "正在生成配音",
+      done: "完成",
+      error: "失败",
+    };
+    const FEISHU = /https?:\/\/[^\s)>\]]*feishu\.cn\/(?:wiki|docx)\/[A-Za-z0-9]+/;
+
+    document.addEventListener("alpine:init", () => {
+      Alpine.data("studio", () => ({
+        screen: "intake",
+        returnScreen: "intake",
+        feishuUrl: "",
+        sections: [],
+        fileName: "",
+        stagedPath: "",
+        dragging: false,
+        busy: false,
+        error: "",
+        statusText: "",
+        live: "",
+        recent: [],
+        bench: null,
+        benchVoiceError: "",
+        copiedKey: "",
+        revealMsg: "",
+        get feishuOk() {
+          const url = this.feishuUrl.trim();
+          const found = url.match(FEISHU);
+          return Boolean(found) && found[0] === url;
+        },
+        get canStart() {
+          const hasSource = Boolean(this.stagedPath) || this.feishuOk;
+          return hasSource && this.sections.length > 0;
+        },
+        async init() {
+          await this.loadRecent();
+        },
+        async openHistory() {
+          this.returnScreen = this.screen === "history" ? "intake" : this.screen;
+          await this.loadRecent();
+          this.screen = "history";
+          window.scrollTo(0, 0);
+        },
+        closeHistory() {
+          const back = this.returnScreen === "bench" && this.bench ? "bench" : "intake";
+          this.screen = back;
+          window.scrollTo(0, 0);
+        },
+        async loadRecent() {
+          const res = await fetch("/api/recent");
+          const data = await res.json();
+          this.recent = data.recent || [];
+        },
+        onUrlInput() {
+          if (!this.feishuUrl.trim()) return;
+          this.stagedPath = "";
+          this.fileName = "";
+          this.sections = [];
+        },
+        async onFile(event) {
+          const file = event.target.files && event.target.files[0];
+          if (file) await this.upload(file);
+        },
+        async onDrop(event) {
+          this.dragging = false;
+          const file = event.dataTransfer.files && event.dataTransfer.files[0];
+          if (file) await this.upload(file);
+        },
+        async upload(file) {
+          this.error = "";
+          this.feishuUrl = "";
+          this.sections = [];
+          const res = await fetch("/api/stage", {
+            method: "POST",
+            headers: { "X-Filename": encodeURIComponent(file.name) },
+            body: file,
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            this.error = data.error || "上传失败";
+            return;
+          }
+          this.stagedPath = data.path;
+          this.fileName = data.filename;
+          await this.preview({ staged_path: this.stagedPath });
+        },
+        clearFile() {
+          this.stagedPath = "";
+          this.fileName = "";
+          this.sections = [];
+        },
+        async readFeishu() {
+          this.error = "";
+          this.stagedPath = "";
+          this.fileName = "";
+          this.sections = [];
+          await this.preview({ feishu_url: this.feishuUrl.trim() });
+        },
+        async preview(body) {
+          this.busy = true;
+          this.statusText = "正在读取脚本";
+          this.live = this.statusText;
+          const res = await fetch("/api/preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          this.busy = false;
+          this.statusText = "";
+          if (!res.ok) {
+            this.error = data.error || "读不到脚本";
+            return;
+          }
+          this.sections = data.sections || [];
+        },
+        async start() {
+          this.error = "";
+          this.busy = true;
+          this.statusText = "正在读取脚本";
+          this.live = this.statusText;
+          const body = {
+            sections: this.sections.map((sec) => ({
+              index: sec.index,
+              mode: sec.mode,
+              title: sec.title,
+              start: sec.start,
+            })),
+          };
+          if (this.stagedPath) body.staged_path = this.stagedPath;
+          else body.feishu_url = this.feishuUrl.trim();
+          const res = await fetch("/api/jobs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            this.busy = false;
+            this.statusText = "";
+            this.error = data.error || "没有开始";
+            return;
+          }
+          await this.poll(data.id);
+        },
+        async poll(id) {
+          for (;;) {
+            const res = await fetch("/api/jobs/" + id);
+            const job = await res.json();
+            this.statusText = STATUS[job.status] || job.status;
+            this.live = this.statusText;
+            if (job.status === "error") {
+              this.busy = false;
+              this.error = job.error || "失败";
+              return;
+            }
+            if (job.status === "done") {
+              this.benchVoiceError = job.voice_error || "";
+              await this.openBench(job.theme);
+              this.busy = false;
+              this.statusText = "";
+              return;
+            }
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+        },
+        async openBench(theme) {
+          this.error = "";
+          const res = await fetch("/api/bench/" + theme);
+          const data = await res.json();
+          if (!res.ok) {
+            this.error = data.error || "打不开这一集";
+            return;
+          }
+          this.bench = data;
+          this.revealMsg = "";
+          this.screen = "bench";
+          window.scrollTo(0, 0);
+        },
+        async copy(key, text) {
+          let ok = false;
+          try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+          } catch (err) {
+            const area = document.createElement("textarea");
+            area.value = text;
+            document.body.appendChild(area);
+            area.select();
+            ok = document.execCommand("copy");
+            area.remove();
+          }
+          if (!ok) {
+            this.error = "复制失败，请手动选择文本";
+            return;
+          }
+          this.error = "";
+          this.copiedKey = key;
+          this.live = "已复制";
+          setTimeout(() => {
+            if (this.copiedKey === key) this.copiedKey = "";
+          }, 1600);
+        },
+        async reveal() {
+          this.revealMsg = "";
+          const res = await fetch("/api/reveal", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ theme: this.bench.theme }),
+          });
+          const data = await res.json();
+          this.revealMsg = res.ok ? "已在访达打开" : (data.error || "打不开文件夹");
+        },
+      }));
+    });
+  </script>
+</body>
+</html>
