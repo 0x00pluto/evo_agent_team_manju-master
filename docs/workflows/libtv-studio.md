@@ -13,7 +13,7 @@ cd /Users/peng.zhi/Documents/Codex/AI漫剧大师
 
 浏览器打开 `http://127.0.0.1:8767/`。只绑定本机。
 
-同一套页面也可以作为 Dex Buddy 插件打开。仓库根上的 `plugin.manifest.json` 指向 `index.js` 和这份页面。列表和详情的图标、简介来自清单里的 `icon` 与 `description`。插件里按钮优先走 `window.dex.call`，没有再退回 `window.hub.call`；浏览器里两者都没有则仍走本机 HTTP。业务还是 Python，不在 Node 里重写。
+同一套页面也可以作为 Dex Buddy 插件打开。仓库根上的 `plugin.manifest.json` 指向 `index.js` 和这份页面。列表和详情的图标、简介来自清单里的 `icon` 与 `description`。分类来自 `category`，插件市场按「流量密码」分段。插件里按钮优先走 `window.dex.call`，没有再退回 `window.hub.call`；浏览器里两者都没有则仍走本机 HTTP。业务还是 Python，不在 Node 里重写。
 
 开发时不要把源码拷进 Dex Buddy 的 `plugins/`。任选一种：
 
