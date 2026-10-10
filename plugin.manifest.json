@@ -1,7 +1,7 @@
 {
   "id": "manju-studio",
   "displayName": "漫剧操作台",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "ui",
   "description": "从飞书或脚本文本生成漫剧分镜提示词，并合成整集口播配音。",
   "icon": "icon.svg",
