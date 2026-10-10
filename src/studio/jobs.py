@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
+import re
 import threading
 import time
 import uuid
@@ -14,8 +13,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from src.episode_voiceover import synthesize_manifest
 from src.generate_episode import generate_episode
-from src.studio.bench import validate_theme
+from src.studio.bench import _fact_paths, validate_theme, voice_dir
 from src.studio.compile_episode import compile_bundle, resolve_modes
 
 Runner = Callable[..., None]
@@ -105,23 +105,68 @@ def write_facts(root: Path, bundle: dict[str, Any], selections: list[dict[str, A
     return out
 
 
-def synthesize_voice(root: Path, slug: str) -> None:
+_LINE_ID = re.compile(r"^[A-Za-z0-9]{1,8}$")
+_FILE_SLUG = {"招商顾问": "advisor", "企业主": "owner"}
+
+
+def resynth_line(
+    root: Path,
+    theme: str,
+    line_id: str,
+    text: str,
+    *,
+    code_root: Path | None = None,
+) -> dict[str, str]:
+    """只改一条口播并重配，不动其它句和分镜提示词。"""
+    theme = validate_theme(theme)
+    line_id = str(line_id or "").strip()
+    text = str(text or "").strip()
+    if not _LINE_ID.fullmatch(line_id):
+        raise ValueError("配音编号不对")
+    if not text:
+        raise ValueError("配音文本为空")
+    if not (os.environ.get("MINIMAX_API_KEY") or "").strip():
+        raise RuntimeError("缺少 MINIMAX_API_KEY。提示词不受影响，在设置里填上密钥后再重配这一条。")
+    code = Path(code_root) if code_root is not None else Path(root)
+    _episode, voice_path = _fact_paths(root, theme, code_root=code)
+    if not voice_path.is_file():
+        raise FileNotFoundError("还没有这一集的配音清单")
+    data = json.loads(voice_path.read_text(encoding="utf-8"))
+    found = None
+    for line in data.get("lines") or []:
+        if isinstance(line, dict) and str(line.get("id") or "") == line_id:
+            found = line
+            break
+    if found is None:
+        raise ValueError(f"清单里没有第 {line_id} 条")
+    found["text"] = text
+    voice_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    synthesize_manifest(voice_path, voice_dir(root, theme), only=[line_id], repo_root=code)
+    speaker = str(found.get("speaker") or "")
+    file_slug = _FILE_SLUG.get(speaker, speaker.replace(" ", "-"))
+    filename = f"{line_id}_{file_slug}.mp3"
+    return {
+        "id": line_id,
+        "text": text,
+        "file": filename,
+        "url": f"/media/{theme}/voiceover/{filename}?v={int(time.time())}",
+    }
+
+
+def synthesize_voice(root: Path, slug: str, *, code_root: Path | None = None) -> None:
     if not (os.environ.get("MINIMAX_API_KEY") or "").strip():
         raise RuntimeError(
-            "缺少 MINIMAX_API_KEY。提示词已生成。在启动操作台的终端里 export 后再重跑配音。"
+            "缺少 MINIMAX_API_KEY。提示词已生成。在设置里填写 MiniMax 密钥后再重跑配音。"
         )
-    cmd = [
-        sys.executable,
-        str(root / "scripts" / "synthesize_episode_voiceover.py"),
-        "--manifest",
-        str(facts_dir(root) / f"{slug}-voiceover.json"),
-        "--out-dir",
-        str(root / "output" / slug / "voiceover"),
-    ]
-    proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True)
-    if proc.returncode != 0:
-        err = (proc.stderr or proc.stdout or "").strip()
-        raise RuntimeError(err or f"配音失败（{proc.returncode}）")
+    code = Path(code_root) if code_root is not None else Path(root)
+    synthesize_manifest(
+        facts_dir(root) / f"{slug}-voiceover.json",
+        root / "output" / slug / "voiceover",
+        repo_root=code,
+    )
 
 
 def run_pipeline(
@@ -130,9 +175,10 @@ def run_pipeline(
     script: str,
     selections: list[dict[str, Any]],
     *,
+    code_root: Path | None = None,
     compile_fn: Callable[..., dict[str, Any]] = compile_bundle,
     generate_fn: Callable[..., list[Path]] = generate_episode,
-    voice_fn: Callable[[Path, str], None] = synthesize_voice,
+    voice_fn: Callable[..., None] = synthesize_voice,
 ) -> None:
     job.status = "compiling"
     job.touch()
@@ -150,7 +196,10 @@ def run_pipeline(
     job.status = "voicing"
     job.touch()
     try:
-        voice_fn(root, bundle["slug"])
+        if voice_fn is synthesize_voice:
+            synthesize_voice(root, bundle["slug"], code_root=code_root)
+        else:
+            voice_fn(root, bundle["slug"])
     except Exception as exc:  # noqa: BLE001 — 提示词已落盘，配音失败仍可复制
         job.voice_error = str(exc)
     job.status = "done"
@@ -158,8 +207,15 @@ def run_pipeline(
 
 
 class JobManager:
-    def __init__(self, root: Path, *, pipeline: Callable[..., None] = run_pipeline) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        code_root: Path | None = None,
+        pipeline: Callable[..., None] = run_pipeline,
+    ) -> None:
         self.root = Path(root).resolve()
+        self.code_root = Path(code_root).resolve() if code_root is not None else self.root
         self.pipeline = pipeline
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
@@ -192,7 +248,10 @@ class JobManager:
 
     def _worker(self, job: Job, script: str, selections: list[dict[str, Any]]) -> None:
         try:
-            self.pipeline(self.root, job, script, selections)
+            if self.pipeline is run_pipeline:
+                run_pipeline(self.root, job, script, selections, code_root=self.code_root)
+            else:
+                self.pipeline(self.root, job, script, selections)
         except Exception as exc:  # noqa: BLE001
             job.status = "error"
             job.error = str(exc)

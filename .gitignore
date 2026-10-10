@@ -1,4 +1,9 @@
 .venv/
+bin/manju-studio-worker
+bin/manju-studio-worker.exe
+bin/darwin/
+bin/win32/
+bin/linux/
 __pycache__/
 *.pyc
 .pytest_cache/

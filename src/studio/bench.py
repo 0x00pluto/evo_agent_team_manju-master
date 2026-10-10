@@ -22,12 +22,13 @@ def validate_theme(theme: str) -> str:
     return t
 
 
-def _fact_paths(root: Path, theme: str) -> tuple[Path, Path]:
-    """操作台事实在 temp；汉阳造、光谷生物城等参考稿仍在 assets/episodes。"""
+def _fact_paths(root: Path, theme: str, *, code_root: Path | None = None) -> tuple[Path, Path]:
+    """操作台事实在数据根的 temp；参考稿仍在代码根的 assets/episodes。"""
     theme = validate_theme(theme)
+    code = Path(code_root) if code_root is not None else Path(root)
     bases = (
         Path(root) / "temp" / "studio_facts",
-        Path(root) / "assets" / "episodes",
+        code / "assets" / "episodes",
     )
     for base in bases:
         episode = base / f"{theme}.json"
@@ -51,6 +52,18 @@ def voice_dir(root: Path, theme: str) -> Path:
     target = (base / "voiceover").resolve()
     if not target.is_relative_to(base):
         raise ValueError("配音路径越界")
+    return target
+
+
+def voice_mp3(root: Path, theme: str, filename: str) -> Path:
+    """只打开这一集 voiceover 里、文件名符合 01_owner.mp3 的那一条。"""
+    name = Path(str(filename or "")).name
+    if name != str(filename or "") or not _VOICE_NAME.match(name):
+        raise ValueError("配音文件不对")
+    folder = voice_dir(root, theme).resolve()
+    target = (folder / name).resolve()
+    if not target.is_relative_to(folder) or not target.is_file():
+        raise FileNotFoundError("文件不存在")
     return target
 
 
@@ -150,7 +163,7 @@ def list_voice(root: Path, theme: str) -> list[dict[str, str]]:
     return rows
 
 
-def load_bench(root: Path, theme: str) -> dict:
+def load_bench(root: Path, theme: str, *, code_root: Path | None = None) -> dict:
     theme = validate_theme(theme)
     out = output_dir(root, theme)
     if not (out / "03-分镜.md").is_file() and not list(out.glob("01-角色-*.md")):
@@ -173,7 +186,7 @@ def load_bench(root: Path, theme: str) -> dict:
     summary.setdefault("voice_only", [])
 
     if not summary.get("shots"):
-        episode_path, vo_path = _fact_paths(root, theme)
+        episode_path, vo_path = _fact_paths(root, theme, code_root=code_root)
         if episode_path.is_file() and vo_path.is_file():
             import json
 

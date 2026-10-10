@@ -1,0 +1,56 @@
+{
+  "id": "manju-studio",
+  "displayName": "漫剧操作台",
+  "version": "0.1.0",
+  "type": "ui",
+  "description": "从飞书或脚本文本生成漫剧分镜提示词，并合成整集口播配音。",
+  "icon": "icon.svg",
+  "main": "index.js",
+  "uiEntry": "src/studio/static/index.html",
+  "configSchema": {
+    "DEEPSEEK_API_KEY": {
+      "type": "string",
+      "title": "DeepSeek 密钥",
+      "description": "用于写提示词。在 https://platform.deepseek.com/api_keys 申请。",
+      "default": "",
+      "secret": true,
+      "group": "提示词"
+    },
+    "DEEPSEEK_BASE_URL": {
+      "type": "string",
+      "title": "DeepSeek 接口地址",
+      "default": "https://api.deepseek.com",
+      "group": "提示词"
+    },
+    "DEEPSEEK_MODEL": {
+      "type": "string",
+      "title": "DeepSeek 模型",
+      "default": "deepseek-flash",
+      "group": "提示词"
+    },
+    "FEISHU_APP_ID": {
+      "type": "string",
+      "title": "飞书 App ID",
+      "description": "开放平台自建应用的 App ID。和 App Secret 一起用来读取飞书文档。",
+      "default": "",
+      "secret": true,
+      "group": "飞书"
+    },
+    "FEISHU_APP_SECRET": {
+      "type": "string",
+      "title": "飞书 App Secret",
+      "description": "开放平台自建应用的 App Secret。应用需开通查看新版文档和查看知识库，并被加进要读的文档或知识空间。",
+      "default": "",
+      "secret": true,
+      "group": "飞书"
+    },
+    "MINIMAX_API_KEY": {
+      "type": "string",
+      "title": "MiniMax 密钥",
+      "description": "用于配音。国际站密钥，本仓直接调用 MiniMax 语音合成。",
+      "default": "",
+      "secret": true,
+      "group": "配音"
+    }
+  }
+}

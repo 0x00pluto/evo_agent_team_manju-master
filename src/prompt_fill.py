@@ -3,9 +3,20 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "prompt_templates"
+
+
+def default_templates_dir() -> Path:
+    """源码旁的模板；冻结后改读随二进制带上的那一份。"""
+    bundled = Path(getattr(sys, "_MEIPASS", "")) / "src" / "prompt_templates"
+    if bundled.is_dir():
+        return bundled
+    return TEMPLATES_DIR
+
+
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
 FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n?", re.DOTALL)
 
@@ -23,7 +34,7 @@ def strip_frontmatter(text: str) -> str:
 
 
 def read_template(name: str, *, templates_dir: Path | None = None) -> str:
-    root = templates_dir or TEMPLATES_DIR
+    root = templates_dir or default_templates_dir()
     path = root / name
     if not path.is_file():
         raise FileNotFoundError(f"模板不存在: {path}")
@@ -31,7 +42,7 @@ def read_template(name: str, *, templates_dir: Path | None = None) -> str:
 
 
 def load_style_and_duration(*, templates_dir: Path | None = None) -> dict[str, str]:
-    root = templates_dir or TEMPLATES_DIR
+    root = templates_dir or default_templates_dir()
     manifest = (root / "manifest.md").read_text(encoding="utf-8")
     style_id = parse_style_id(manifest)
     style = read_template(f"style/{style_id}.md", templates_dir=root)
@@ -66,7 +77,7 @@ def fill(template: str, variables: dict[str, str]) -> str:
 
 def build_prompt(module_file: str, variables: dict[str, str], *, templates_dir: Path | None = None) -> str:
     """组装发给 DeepSeek 的完整 user 提示（含风格/时长注入）。"""
-    root = templates_dir or TEMPLATES_DIR
+    root = templates_dir or default_templates_dir()
     base = load_style_and_duration(templates_dir=root)
     merged = {**base, **variables}
     # style_id 不是模板占位符，去掉以免干扰

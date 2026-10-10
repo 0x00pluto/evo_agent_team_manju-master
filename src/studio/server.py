@@ -1,11 +1,13 @@
-"""stdlib HTTP：操作台页面、任务、媒体与访达打开。"""
+"""stdlib HTTP：操作台页面、任务、媒体与打开配音文件夹。"""
 
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import re
 import subprocess
+import sys
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
@@ -13,9 +15,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from src.studio.bench import list_recent, load_bench, validate_theme, voice_dir
+from src.feishu_doc import fetch_document
+from src.studio.bench import list_recent, load_bench, validate_theme, voice_dir, voice_mp3
 from src.studio.compile_episode import split_sections
-from src.studio.jobs import JobManager
+from src.studio.jobs import JobManager, resynth_line
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 _FEISHU_RE = re.compile(
@@ -63,39 +66,7 @@ def section_choices(script: str, **kwargs: Any) -> list[dict[str, Any]]:
 def fetch_feishu(url: str) -> str:
     if not feishu_url_in(url):
         raise ValueError("不是飞书文档链接")
-    proc = subprocess.run(
-        [
-            "lark-cli",
-            "docs",
-            "+fetch",
-            "--doc",
-            url,
-            "--doc-format",
-            "markdown",
-            "--as",
-            "user",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=90,
-    )
-    raw = (proc.stdout or "").strip()
-    if proc.returncode != 0 or not raw:
-        err = (proc.stderr or proc.stdout or "飞书读取失败").strip()
-        raise RuntimeError(err)
-    start = raw.find("{")
-    end = raw.rfind("}")
-    if start < 0 or end <= start:
-        raise RuntimeError("飞书返回不是 JSON")
-    data = json.loads(raw[start : end + 1])
-    content = (
-        data.get("data", {})
-        .get("document", {})
-        .get("content")
-    )
-    if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("飞书文档没有正文")
-    return content
+    return fetch_document(url)
 
 
 def read_staged(root: Path, staged: str) -> str:
@@ -104,6 +75,81 @@ def read_staged(root: Path, staged: str) -> str:
     if not target.is_relative_to(base) or not target.is_file():
         raise ValueError("上传文件无效")
     return target.read_text(encoding="utf-8")
+
+
+_SCRIPT_SUFFIXES = {".md", ".markdown", ".txt"}
+
+
+def load_script(root: Path, payload: dict[str, Any]) -> str:
+    """飞书链接、已暂存上传、页内脚本文本三者只留一个。"""
+    staged = str(payload.get("staged_path") or "").strip()
+    url = explicit_feishu_url(payload)
+    raw_text = payload.get("script_text")
+    text = raw_text if isinstance(raw_text, str) else ""
+    has_text = bool(text.strip())
+    if sum(bool(item) for item in (staged, url, has_text)) > 1:
+        raise ValueError("飞书链接和上传脚本只保留后选的一个")
+    if staged:
+        return read_staged(root, staged)
+    if url:
+        return fetch_feishu(url)
+    if has_text:
+        filename = str(payload.get("filename") or "").strip()
+        if filename and Path(filename).suffix.lower() not in _SCRIPT_SUFFIXES:
+            raise ValueError("只接收 .md / .txt 脚本")
+        if len(text.encode("utf-8")) > _MAX_UPLOAD:
+            raise ValueError("请上传 2MB 以内的文本脚本")
+        return text
+    if str(payload.get("feishu_url") or "").strip():
+        raise ValueError("请只填写飞书文档链接")
+    raise ValueError("请上传脚本，或填写飞书文档链接")
+
+
+def reveal_voice(root: Path, theme: str) -> dict[str, Any]:
+    folder = voice_dir(root, theme)
+    if not folder.is_dir():
+        raise FileNotFoundError("还没有配音文件夹")
+    if sys.platform == "win32":
+        # 资源管理器在成功打开文件夹时也经常返回非 0，不能拿退出码判断失败。
+        subprocess.run(["explorer", str(folder)], check=False)
+        return {"ok": True, "path": str(folder)}
+    proc = subprocess.run(["open", str(folder)], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or "无法打开文件夹").strip())
+    return {"ok": True, "path": str(folder)}
+
+
+def voiceover_zip_bytes(root: Path, theme: str) -> tuple[str, bytes]:
+    folder = voice_dir(root, theme)
+    if not folder.is_dir():
+        raise FileNotFoundError("还没有配音")
+    names = sorted(folder.glob("*.mp3"))
+    if not names:
+        raise FileNotFoundError("文件夹里没有 MP3")
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for mp3 in names:
+            zf.write(mp3, arcname=mp3.name)
+    safe = validate_theme(theme)
+    return f"{safe}-voiceover.zip", buf.getvalue()
+
+
+def read_voice(root: Path, theme: str, filename: str) -> dict[str, str]:
+    target = voice_mp3(root, theme, filename)
+    return {
+        "file": target.name,
+        "mime": "audio/mpeg",
+        "base64": base64.b64encode(target.read_bytes()).decode("ascii"),
+    }
+
+
+def download_zip(root: Path, theme: str) -> dict[str, str]:
+    filename, body = voiceover_zip_bytes(root, theme)
+    return {
+        "filename": filename,
+        "mime": "application/zip",
+        "base64": base64.b64encode(body).decode("ascii"),
+    }
 
 
 class StudioHandler(BaseHTTPRequestHandler):
@@ -187,6 +233,9 @@ class StudioHandler(BaseHTTPRequestHandler):
             if path == "/api/reveal":
                 self._reveal()
                 return
+            if path == "/api/voiceover/resynth":
+                self._resynth()
+                return
             self._json(404, {"error": "not found"})
         except FileNotFoundError as exc:
             self._json(404, {"error": str(exc)})
@@ -220,62 +269,48 @@ class StudioHandler(BaseHTTPRequestHandler):
                 remaining -= len(chunk)
         self._json(201, {"path": str(dest.resolve()), "filename": dest.name})
 
-    def _load_script(self, payload: dict[str, Any]) -> str:
-        staged = str(payload.get("staged_path") or "").strip()
-        url = explicit_feishu_url(payload)
-        if staged and url:
-            raise ValueError("飞书链接和上传脚本只保留后选的一个")
-        if staged:
-            return read_staged(self.root, staged)
-        if url:
-            return fetch_feishu(url)
-        if str(payload.get("feishu_url") or "").strip():
-            raise ValueError("请只填写飞书文档链接")
-        raise ValueError("请上传脚本，或填写飞书文档链接")
-
     def _preview(self) -> None:
         payload = self._read_json()
-        script = self._load_script(payload)
+        script = load_script(self.root, payload)
         self._json(200, {"sections": section_choices(script)})
 
     def _create_job(self) -> None:
         payload = self._read_json()
-        script = self._load_script(payload)
+        script = load_script(self.root, payload)
         sections = payload.get("sections")
         if not isinstance(sections, list):
             raise ValueError("请为每一段选择分镜或只配音")
         job = self.manager.create(script, sections)
         self._json(201, job.to_dict())
 
+    def _resynth(self) -> None:
+        payload = self._read_json()
+        result = resynth_line(
+            self.root,
+            str(payload.get("theme") or ""),
+            str(payload.get("id") or ""),
+            str(payload.get("text") or ""),
+        )
+        self._json(200, result)
+
     def _reveal(self) -> None:
         payload = self._read_json()
-        folder = voice_dir(self.root, str(payload.get("theme") or ""))
-        if not folder.is_dir():
-            raise FileNotFoundError("还没有配音文件夹")
-        proc = subprocess.run(["open", str(folder)], capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise RuntimeError((proc.stderr or "无法打开访达").strip())
-        self._json(200, {"ok": True, "path": str(folder)})
+        self._json(200, reveal_voice(self.root, str(payload.get("theme") or "")))
 
     def _send_zip(self, theme: str) -> None:
-        folder = voice_dir(self.root, theme)
-        if not folder.is_dir():
-            self._json(404, {"error": "还没有配音"})
+        try:
+            filename, body = voiceover_zip_bytes(self.root, theme)
+        except FileNotFoundError as exc:
+            self._json(404, {"error": str(exc)})
             return
-        buf = BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for mp3 in sorted(folder.glob("*.mp3")):
-                zf.write(mp3, arcname=mp3.name)
-        if not buf.tell():
-            self._json(404, {"error": "文件夹里没有 MP3"})
+        except ValueError as exc:
+            self._json(400, {"error": str(exc)})
             return
-        body = buf.getvalue()
-        safe = validate_theme(theme)
         self._send(
             200,
             body,
             "application/zip",
-            {"Content-Disposition": f'attachment; filename="{safe}-voiceover.zip"'},
+            {"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     def _serve_media(self, rel: str) -> None:

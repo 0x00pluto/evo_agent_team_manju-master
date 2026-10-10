@@ -2,10 +2,45 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+# 源码布局下的本仓根。冻结二进制不能用这个找 output / .env，见 plugin_root()。
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ENV_PATH = REPO_ROOT / ".env"
+SETTING_KEYS = (
+    "DEEPSEEK_API_KEY",
+    "DEEPSEEK_BASE_URL",
+    "DEEPSEEK_MODEL",
+    "FEISHU_APP_ID",
+    "FEISHU_APP_SECRET",
+    "MINIMAX_API_KEY",
+)
+
+
+def plugin_root() -> Path:
+    """代码根。index.js 启动 worker 时传入 MANJU_ROOT，用来读 assets 和开发时的 .env。"""
+    override = (os.environ.get("MANJU_ROOT") or "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return REPO_ROOT
+
+
+def data_root() -> Path:
+    """temp 与 output 的根。装进 Dex Buddy 后由 MANJU_DATA_ROOT 指向用户数据目录。"""
+    override = (os.environ.get("MANJU_DATA_ROOT") or "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return plugin_root()
+
+
+def apply_plugin_settings(settings: dict | None) -> None:
+    """把设置页传来的键写入环境。只接受清单里声明过的名字。"""
+    if not isinstance(settings, dict):
+        return
+    for key in SETTING_KEYS:
+        if key not in settings or settings[key] is None:
+            continue
+        os.environ[key] = str(settings[key])
 
 
 def load_dotenv(path: Path | None = None) -> Path | None:
@@ -13,9 +48,7 @@ def load_dotenv(path: Path | None = None) -> Path | None:
 
     返回实际读取的路径；文件不存在则返回 None。
     """
-    import os
-
-    env_path = path or DEFAULT_ENV_PATH
+    env_path = path or (plugin_root() / ".env")
     if not env_path.is_file():
         return None
 
@@ -39,8 +72,6 @@ def load_dotenv(path: Path | None = None) -> Path | None:
 
 def require_deepseek_api_key() -> str:
     """返回 DEEPSEEK_API_KEY；缺失时抛出带配置指引的 RuntimeError。"""
-    import os
-
     load_dotenv()
     key = (os.environ.get("DEEPSEEK_API_KEY") or "").strip()
     if key:

@@ -2,20 +2,27 @@
 
 from __future__ import annotations
 
+import base64
+import importlib.util
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from datetime import datetime
 from http.client import HTTPConnection
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from src.studio.bench import load_bench, parse_shots, validate_theme  # noqa: E402
+from src.studio.bench import _fact_paths, load_bench, output_dir, parse_shots, validate_theme  # noqa: E402
 from src.studio.compile_episode import (  # noqa: E402
     build_locked,
     compile_bundle,
@@ -25,8 +32,18 @@ from src.studio.compile_episode import (  # noqa: E402
     validate_bundle,
 )
 from src.generate_episode import render_shot  # noqa: E402
+from src.env_load import apply_plugin_settings, data_root, load_dotenv, plugin_root  # noqa: E402
+from src.episode_voiceover import load_voice  # noqa: E402
+from src.studio.hub_worker import StudioSession  # noqa: E402
 from src.studio.jobs import Job, JobManager, stamp_slug, write_facts  # noqa: E402
-from src.studio.server import explicit_feishu_url, serve  # noqa: E402
+from src.studio.server import (  # noqa: E402
+    download_zip,
+    explicit_feishu_url,
+    load_script,
+    read_voice,
+    section_choices,
+    serve,
+)
 
 SCRIPT = """【0-20秒·钩子】
 
@@ -464,6 +481,21 @@ class JobTests(unittest.TestCase):
             self.assertTrue((root / "temp" / "studio_facts" / "demo-ep-voiceover.json").is_file())
             self.assertFalse((root / "assets" / "episodes" / "demo-ep.json").exists())
 
+    def test_only_resynth_keeps_other_manifest_lines(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "synthesize_episode_voiceover",
+            REPO / "scripts" / "synthesize_episode_voiceover.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        merged = module.merge_result_lines(
+            [{"id": "01", "text": "甲"}, {"id": "08", "text": "旧"}],
+            [{"id": "08", "text": "新"}],
+        )
+        self.assertEqual([row["id"] for row in merged], ["01", "08"])
+        self.assertEqual(merged[1]["text"], "新")
+        self.assertEqual(merged[0]["text"], "甲")
+
     def test_shot_prompt_keeps_ref_line(self) -> None:
         def chat(_messages: list) -> str:
             return "```text\n【V01】\n参考图：无\n景别：中景\n```"
@@ -495,7 +527,12 @@ class ServerTests(unittest.TestCase):
             self.assertIn("上传脚本", page)
             self.assertIn("分镜演绎", page)
             self.assertNotIn("写明哪些要出镜", page)
-            self.assertIn("在访达中打开", page)
+            self.assertIn("打开所在文件夹", page)
+            self.assertIn("重新配音", page)
+            self.assertIn("下载全部", page)
+            self.assertIn("manjuStudioService", page)
+            self.assertIn("window.dex.call", page)
+            self.assertIn("window.hub.call", page)
             body = json.dumps(
                 {
                     "instruction": "你看一下 https://fcnegd976pzo.feishu.cn/wiki/NWvKwCfy8ihL2ZkVCWScSrOznum",
@@ -515,6 +552,325 @@ class ServerTests(unittest.TestCase):
             res.read()
         finally:
             httpd.shutdown()
+
+
+class HubWorkerTests(unittest.TestCase):
+    def test_script_text_previews_and_rejects_a_second_source(self) -> None:
+        text = load_script(REPO, {"script_text": SCRIPT, "filename": "demo.md"})
+        rows = section_choices(text)
+        self.assertGreaterEqual(len(rows), 2)
+        self.assertEqual(rows[0]["mode"], "shot")
+        with self.assertRaises(ValueError):
+            load_script(
+                REPO,
+                {
+                    "script_text": SCRIPT,
+                    "feishu_url": "https://example.feishu.cn/wiki/Abcd1234",
+                },
+            )
+        with self.assertRaises(ValueError):
+            load_script(REPO, {"script_text": SCRIPT, "filename": "notes.pdf"})
+
+    def test_voice_bytes_roundtrip_as_plain_data(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "output" / "demo-ep" / "voiceover"
+            folder.mkdir(parents=True)
+            (folder / "01_owner.mp3").write_bytes(b"ID3fake")
+            (folder / "02_advisor.mp3").write_bytes(b"ID3more")
+            media = read_voice(root, "demo-ep", "01_owner.mp3")
+            self.assertEqual(base64.b64decode(media["base64"]), b"ID3fake")
+            self.assertEqual(media["mime"], "audio/mpeg")
+            packed = download_zip(root, "demo-ep")
+            self.assertEqual(packed["filename"], "demo-ep-voiceover.zip")
+            with zipfile.ZipFile(BytesIO(base64.b64decode(packed["base64"]))) as zf:
+                self.assertEqual(zf.namelist(), ["01_owner.mp3", "02_advisor.mp3"])
+            with self.assertRaises(ValueError):
+                read_voice(root, "demo-ep", "../01_owner.mp3")
+
+    def test_create_job_returns_before_pipeline_finishes(self) -> None:
+        gate = threading.Event()
+
+        def pipeline(root: Path, job: Job, script: str, selections: list) -> None:
+            gate.wait(2)
+            job.theme = "demo-ep"
+            job.status = "done"
+
+        script = "【钩子】\n企业老板：我们缺的从来不是空间，是资源。\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = StudioSession(root, JobManager(root, pipeline=pipeline))
+            started = time.monotonic()
+            created = session.dispatch(
+                "createJob",
+                {
+                    "script_text": script,
+                    "filename": "hook.md",
+                    "sections": [{"index": 0, "mode": "shot"}],
+                },
+            )
+            self.assertLess(time.monotonic() - started, 0.5)
+            self.assertEqual(created["status"], "queued")
+            followed = session.dispatch("getJob", {"id": created["id"]})
+            self.assertEqual(followed["id"], created["id"])
+            self.assertNotEqual(followed["status"], "done")
+            gate.set()
+            for _ in range(40):
+                if session.dispatch("getJob", {"id": created["id"]})["status"] == "done":
+                    break
+                time.sleep(0.05)
+            self.assertEqual(session.dispatch("getJob", {"id": created["id"]})["status"], "done")
+
+    def test_worker_answers_one_json_line(self) -> None:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "src.studio.hub_worker"],
+            cwd=REPO,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        request = json.dumps(
+            {
+                "id": "1",
+                "method": "preview",
+                "params": {"script_text": SCRIPT, "filename": "a.md"},
+            },
+            ensure_ascii=False,
+        )
+        try:
+            out, err = proc.communicate(request + "\n", timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise
+        self.assertEqual(proc.returncode, 0, err)
+        lines = [line for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1, out)
+        message = json.loads(lines[0])
+        self.assertEqual(message["id"], "1")
+        self.assertTrue(message["ok"], message)
+        self.assertGreaterEqual(len(message["result"]["sections"]), 2)
+
+    def test_plugin_root_reads_env_file_from_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env").write_text("MANJU_TEST_ONLY=from-file\n", encoding="utf-8")
+            (root / "assets" / "voices" / "demo" ).mkdir(parents=True)
+            (root / "assets" / "voices" / "demo" / "voice.json").write_text(
+                json.dumps({"voice_id": "DemoVoice"}),
+                encoding="utf-8",
+            )
+            old_root = os.environ.get("MANJU_ROOT")
+            old_key = os.environ.pop("MANJU_TEST_ONLY", None)
+            os.environ["MANJU_ROOT"] = str(root)
+            try:
+                self.assertEqual(plugin_root(), root.resolve())
+                self.assertEqual(load_dotenv(), (root / ".env").resolve())
+                self.assertEqual(os.environ.get("MANJU_TEST_ONLY"), "from-file")
+                self.assertEqual(load_voice("demo")["voice_id"], "DemoVoice")
+            finally:
+                if old_root is None:
+                    os.environ.pop("MANJU_ROOT", None)
+                else:
+                    os.environ["MANJU_ROOT"] = old_root
+                os.environ.pop("MANJU_TEST_ONLY", None)
+                if old_key is not None:
+                    os.environ["MANJU_TEST_ONLY"] = old_key
+
+    def test_resynth_calls_voiceover_in_process(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            facts = root / "temp" / "studio_facts"
+            facts.mkdir(parents=True)
+            theme = "demo-ep"
+            (facts / f"{theme}.json").write_text("{}\n", encoding="utf-8")
+            (facts / f"{theme}-voiceover.json").write_text(
+                json.dumps(
+                    {
+                        "lines": [
+                            {
+                                "id": "01",
+                                "speaker": "企业主",
+                                "text": "旧",
+                                "voice_slug": "ai-enterprise-owner",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            old = os.environ.get("MINIMAX_API_KEY")
+            os.environ["MINIMAX_API_KEY"] = "test-key"
+            try:
+                with patch("src.studio.jobs.synthesize_manifest") as mocked:
+                    from src.studio.jobs import resynth_line
+
+                    resynth_line(root, theme, "01", "新的一句口播")
+                mocked.assert_called_once()
+                kwargs = mocked.call_args.kwargs
+                self.assertEqual(kwargs["only"], ["01"])
+                self.assertEqual(kwargs["repo_root"], root)
+            finally:
+                if old is None:
+                    os.environ.pop("MINIMAX_API_KEY", None)
+                else:
+                    os.environ["MINIMAX_API_KEY"] = old
+
+    def test_request_settings_are_not_replaced_by_dotenv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env").write_text("DEEPSEEK_API_KEY=from-file\n", encoding="utf-8")
+            old_root = os.environ.get("MANJU_ROOT")
+            old_key = os.environ.get("DEEPSEEK_API_KEY")
+            os.environ["MANJU_ROOT"] = str(root)
+            os.environ["DEEPSEEK_API_KEY"] = "old"
+            try:
+                apply_plugin_settings(
+                    {"DEEPSEEK_API_KEY": "from-settings", "NOT_A_SETTING": "nope"}
+                )
+                self.assertEqual(os.environ["DEEPSEEK_API_KEY"], "from-settings")
+                self.assertNotIn("NOT_A_SETTING", os.environ)
+                load_dotenv()
+                self.assertEqual(os.environ["DEEPSEEK_API_KEY"], "from-settings")
+            finally:
+                if old_root is None:
+                    os.environ.pop("MANJU_ROOT", None)
+                else:
+                    os.environ["MANJU_ROOT"] = old_root
+                if old_key is None:
+                    os.environ.pop("DEEPSEEK_API_KEY", None)
+                else:
+                    os.environ["DEEPSEEK_API_KEY"] = old_key
+
+    def test_installed_facts_stay_out_of_the_code_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            code = base / "installed"
+            data = base / "plugin-data"
+            theme = "sample-ep"
+            assets = code / "assets" / "episodes"
+            assets.mkdir(parents=True)
+            (assets / f"{theme}.json").write_text("{}\n", encoding="utf-8")
+            (assets / f"{theme}-voiceover.json").write_text("{}\n", encoding="utf-8")
+            episode, voice = _fact_paths(data, theme, code_root=code)
+            self.assertEqual(episode, assets / f"{theme}.json")
+            self.assertEqual(voice, assets / f"{theme}-voiceover.json")
+            facts = data / "temp" / "studio_facts"
+            facts.mkdir(parents=True)
+            (facts / f"{theme}.json").write_text('{"title": "new"}\n', encoding="utf-8")
+            (facts / f"{theme}-voiceover.json").write_text("{}\n", encoding="utf-8")
+            episode, _voice = _fact_paths(data, theme, code_root=code)
+            self.assertEqual(episode, facts / f"{theme}.json")
+            written = write_facts(
+                data,
+                {
+                    "slug": "demo-ep",
+                    "episode": {"title": "甲"},
+                    "voiceover": {"lines": []},
+                    "summary": {"shots": [], "voice_only": []},
+                },
+                [],
+            )
+            self.assertEqual(written, data / "output" / "demo-ep")
+            self.assertEqual(output_dir(data, "demo-ep"), (data / "output" / "demo-ep").resolve())
+            self.assertFalse((code / "output").exists())
+            self.assertFalse((code / "temp").exists())
+            old = os.environ.get("MANJU_DATA_ROOT")
+            os.environ["MANJU_DATA_ROOT"] = str(data)
+            try:
+                self.assertEqual(data_root(), data.resolve())
+            finally:
+                if old is None:
+                    os.environ.pop("MANJU_DATA_ROOT", None)
+                else:
+                    os.environ["MANJU_DATA_ROOT"] = old
+
+    def test_resolve_worker_prefers_venv_then_binary(self) -> None:
+        proc = subprocess.run(
+            ["node", "-e", NODE_RESOLVE],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr or proc.stdout)
+
+
+NODE_RESOLVE = r"""
+const path = require("path");
+const { resolveWorker } = require("./index.js");
+const root = "/plugin";
+const python = path.join(root, ".venv", "bin", "python");
+const darwinBinary = path.join(root, "bin", "darwin", "manju-studio-worker");
+const winBinary = path.join(root, "bin", "win32", "manju-studio-worker.exe");
+const linuxBinary = path.join(root, "bin", "linux", "manju-studio-worker");
+const flatBinary = path.join(root, "bin", "manju-studio-worker");
+const check = (present) => (file) => present.has(file);
+const both = resolveWorker(root, check(new Set([python, darwinBinary, winBinary, linuxBinary])), "darwin");
+if (both.command !== python || both.args.join(" ") !== "-m src.studio.hub_worker") {
+  throw new Error("venv should win: " + JSON.stringify(both));
+}
+const frozen = resolveWorker(root, check(new Set([darwinBinary])), "darwin");
+if (frozen.command !== darwinBinary || frozen.args.length !== 0) {
+  throw new Error("darwin binary should run with no args: " + JSON.stringify(frozen));
+}
+const windows = resolveWorker(root, check(new Set([darwinBinary, winBinary])), "win32");
+if (windows.command !== winBinary || windows.args.length !== 0) {
+  throw new Error("windows should use the exe: " + JSON.stringify(windows));
+}
+const linux = resolveWorker(root, check(new Set([linuxBinary])), "linux");
+if (linux.command !== linuxBinary || linux.args.length !== 0) {
+  throw new Error("linux should use its own binary: " + JSON.stringify(linux));
+}
+const flatOnly = resolveWorker(root, check(new Set([flatBinary])), "darwin");
+if (!flatOnly.error || flatOnly.error.indexOf("不完整") < 0) {
+  throw new Error("flat bin path is not an install layout: " + JSON.stringify(flatOnly));
+}
+const missing = resolveWorker(root, check(new Set()));
+if (!missing.error || missing.error.indexOf("不完整") < 0) {
+  throw new Error("missing package should explain itself: " + JSON.stringify(missing));
+}
+const { workerEnv } = require("./index.js");
+const merged = workerEnv(
+  { DEEPSEEK_API_KEY: "", PATH: "/usr/bin" },
+  { DEEPSEEK_API_KEY: "from-settings" },
+  "/plugin"
+);
+if (merged.DEEPSEEK_API_KEY !== "from-settings") {
+  throw new Error("settings should replace an empty key");
+}
+if (merged.MANJU_ROOT !== "/plugin" || merged.PYTHONUNBUFFERED !== "1") {
+  throw new Error("worker env should keep MANJU_ROOT");
+}
+if (merged.MANJU_DATA_ROOT !== "/plugin") {
+  throw new Error("data root should follow the code root until set");
+}
+const split = workerEnv({}, {}, "/code", "/data");
+if (split.MANJU_ROOT !== "/code" || split.MANJU_DATA_ROOT !== "/data") {
+  throw new Error("data root should be passed separately: " + JSON.stringify(split));
+}
+if (merged.PATH !== "/usr/bin") {
+  throw new Error("unrelated env should stay");
+}
+const fs = require("fs");
+const os = require("os");
+const { pluginDataDir } = require("./index.js");
+const userData = fs.mkdtempSync(path.join(os.tmpdir(), "manju-user-"));
+const installed = path.join(userData, "installed_plugins", "manju-studio");
+fs.mkdirSync(installed, { recursive: true });
+const installedData = pluginDataDir(installed, userData, "manju-studio");
+if (installedData !== path.join(userData, "plugin-data", "manju-studio")) {
+  throw new Error("installed plugin should use plugin-data: " + installedData);
+}
+if (!fs.existsSync(path.join(installedData, "temp")) || !fs.existsSync(path.join(installedData, "output"))) {
+  throw new Error("plugin-data should contain temp and output");
+}
+const repo = fs.mkdtempSync(path.join(os.tmpdir(), "manju-repo-"));
+const devData = pluginDataDir(repo, userData, "manju-studio");
+if (devData !== path.resolve(repo)) {
+  throw new Error("dev path should stay in the repo: " + devData);
+}
+"""
 
 
 if __name__ == "__main__":

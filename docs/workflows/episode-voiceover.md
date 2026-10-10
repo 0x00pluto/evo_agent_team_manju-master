@@ -11,7 +11,7 @@ cd /Users/peng.zhi/Documents/Codex/AI漫剧大师
 .venv/bin/python scripts/synthesize_episode_voiceover.py --help
 ```
 
-密钥：`export MINIMAX_API_KEY=...`（国际站）。兄弟仓 `synthesize-voice.mjs` **只读进程环境**，不自动加载其 `.env`。本仓不重复填 MiniMax。
+密钥：本仓 `.env` 或环境变量 `MINIMAX_API_KEY`（国际站 `https://api.minimax.io`）。合成在本仓完成。
 
 ## 参数
 
@@ -19,8 +19,7 @@ cd /Users/peng.zhi/Documents/Codex/AI漫剧大师
 |---|---|
 | `--manifest` | 配音清单 JSON，如 `assets/episodes/hanyangzao-hook-cta-voiceover.json` |
 | `--out-dir` | 产物目录，默认 `output/hanyangzao-hook-cta/voiceover` |
-| `--sibling-root` | 「IP数字人项目」根目录；或环境变量 `IP_DIGITAL_HUMAN_ROOT` |
-| `--dry-run` | 只写 `.txt` 与命令草稿，不调 API |
+| `--dry-run` | 只写 `.txt` 与清单草稿，不调 API |
 | `--only` | 只配指定 `id`，可重复（如 `--only 06`） |
 
 ### 清单硬规则（写 `*-voiceover.json` 时）
@@ -62,7 +61,7 @@ export MINIMAX_API_KEY='你的国际站 Key'   # 若进程里还没有
 ### 改清单但不想重配全部
 
 - **只改顺序 / 重编号**：先改 JSON，再按旧→新映射**改名**已有 mp3/txt，更新 `manifest-out.json`；勿无必要重打 TTS。
-- **只改某句文案**：改 JSON 后 `--only <id>` 重配该句。
+- **只改某句文案**：改 JSON 后 `--only <id>` 重配该句。已有的 `manifest-out.json` 按 id 合并，其它条的记录留下。操作台场记单里也可以改字后点「重新配音」。
 
 ## 产物
 
@@ -74,8 +73,8 @@ export MINIMAX_API_KEY='你的国际站 Key'   # 若进程里还没有
 
 | 现象 | 处理 |
 |---|---|
-| 找不到兄弟仓 CLI | 设 `IP_DIGITAL_HUMAN_ROOT` 或传 `--sibling-root` |
-| 缺少 `MINIMAX_API_KEY` | `export MINIMAX_API_KEY=...` |
+| 缺少 `MINIMAX_API_KEY` | 写入本仓 `.env`，或 `export MINIMAX_API_KEY=...` |
+| 单句超过 5000 字 | 拆短后再配；当前只走同步合成 |
 | 找不到 `voice.json` | 先跑学新声工作流入库 |
 | 单句失败 | `--only <id>` 重跑（如 `--only 06`） |
 | 数字读法不对 | 检查清单引号是否被改掉；见 [`docs/faqs/配音文案里的引号能否去掉.md`](../faqs/配音文案里的引号能否去掉.md) |
@@ -90,6 +89,5 @@ export MINIMAX_API_KEY='你的国际站 Key'   # 若进程里还没有
   --dry-run
 test -f assets/voices/ai-enterprise-owner/voice.json
 test -f assets/voices/female-zhao-shang-lead/voice.json
-cd /Users/peng.zhi/Documents/Codex/IP数字人项目
-node scripts/media/synthesize-voice.mjs --help
+.venv/bin/python -m unittest tests.test_minimax_tts tests.test_feishu_doc -v
 ```

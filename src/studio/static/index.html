@@ -13,9 +13,13 @@
       theme: {
         extend: {
           colors: {
-            paper: "#F4F1EA",
-            ink: "#1C1915",
-            brass: "#8C6A3D",
+            paper: "#ffffff",
+            ink: "#171717",
+            muted: "#6b6b6b",
+            line: "#ececec",
+            hover: "#f3f3f3",
+            danger: "#8d3a2f",
+            ok: "#2d6a4f",
           },
         },
       },
@@ -25,24 +29,21 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <style>
     :root {
-      --bg: #F4F1EA;
-      --surface: #FBF9F4;
-      --ink: #1C1915;
-      --muted: #6B645B;
-      --line: #E2D9CC;
-      --brass: #8C6A3D;
-      --brass-ink: #FFF8EE;
-      --danger: #8E2F24;
       color-scheme: light;
+      --ink: #171717;
+      --muted: #6b6b6b;
+      --paper: #ffffff;
+      --line: #ececec;
+      --hover: #f3f3f3;
+      --danger: #8d3a2f;
+      --ok: #2d6a4f;
     }
     [x-cloak] { display: none !important; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      background:
-        linear-gradient(180deg, rgba(140, 106, 61, 0.06), transparent 220px),
-        var(--bg);
+      background: var(--paper);
       color: var(--ink);
       font-family: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
       line-height: 1.55;
@@ -52,7 +53,7 @@
     button { cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: 0.45; }
     :focus-visible {
-      outline: 2px solid var(--brass);
+      outline: 2px solid var(--ink);
       outline-offset: 2px;
     }
     .serif { font-family: "Noto Serif SC", "Songti SC", serif; }
@@ -96,7 +97,7 @@
     .intake.stacked .composer { transform: none; }
     .kicker {
       margin: 0 0 0.35rem;
-      color: var(--brass);
+      color: var(--ink);
       font-size: 0.75rem;
       font-weight: 600;
       letter-spacing: 0.14em;
@@ -123,18 +124,18 @@
       color: var(--ink);
       min-height: 44px;
     }
-    .recent button:hover { color: var(--brass); }
+    .recent button:hover { background: var(--hover); }
     .recent small { color: var(--muted); }
     .composer {
       position: sticky;
       bottom: 0.75rem;
       margin-top: 2rem;
-      background: var(--surface);
+      background: var(--paper);
       border: 1px solid var(--line);
-      box-shadow: 0 12px 40px rgba(28, 25, 21, 0.06);
+      box-shadow: 0 12px 40px rgba(23, 23, 23, 0.06);
       padding: 0.75rem;
     }
-    .composer.drag { border-color: var(--brass); }
+    .composer.drag { border-color: var(--ink); }
     textarea {
       width: 100%;
       min-height: 7.5rem;
@@ -144,7 +145,7 @@
       color: var(--ink);
       padding: 0.35rem 0.35rem 0.5rem;
     }
-    textarea::placeholder, .url::placeholder { color: #9A9186; }
+    textarea::placeholder, .url::placeholder { color: var(--muted); }
     .field {
       display: flex;
       flex-direction: column;
@@ -193,8 +194,8 @@
       color: var(--ink);
     }
     .seg label:has(input:checked) {
-      border-color: var(--brass);
-      color: var(--brass);
+      border-color: var(--ink);
+      color: var(--ink);
     }
     @media (max-width: 700px) {
       .choices li { grid-template-columns: 1fr; }
@@ -223,7 +224,7 @@
     .chip button {
       border: 0;
       background: transparent;
-      color: var(--brass);
+      color: var(--ink);
       min-height: 44px;
       padding: 0 0.25rem;
     }
@@ -231,9 +232,9 @@
       margin-left: auto;
       min-height: 44px;
       padding: 0 1.15rem;
-      border: 0;
-      background: var(--brass);
-      color: var(--brass-ink);
+      border: 1px solid var(--line);
+      background: var(--hover);
+      color: var(--ink);
       font-weight: 600;
     }
     .err { color: var(--danger); margin: 0.6rem 0 0; white-space: pre-wrap; }
@@ -284,13 +285,13 @@
       background: transparent;
       color: var(--ink);
     }
-    .copy.on { border-color: var(--brass); color: var(--brass); }
+    .copy.on { border-color: var(--line); color: var(--ok); }
     pre.prompt {
       margin: 0;
       max-height: 11rem;
       overflow: auto;
       white-space: pre-wrap;
-      background: #F7F3EC;
+      background: var(--hover);
       padding: 0.8rem 0.9rem;
       color: var(--ink);
     }
@@ -303,7 +304,7 @@
     }
     audio { width: 100%; height: 36px; }
     .voice-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.45rem; }
-    .voice-actions a, .tools a, .tools button, .back {
+    .voice-actions a, .voice-actions button, .tools a, .tools button, .back {
       min-height: 44px;
       display: inline-flex;
       align-items: center;
@@ -315,7 +316,16 @@
     }
     .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0 0.2rem; }
     .back { margin-top: 0.5rem; }
-    .voice-text { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.92rem; }
+    .voice-edit {
+      width: 100%;
+      min-height: 4.5rem;
+      margin-top: 0.45rem;
+      border: 1px solid var(--line);
+      background: var(--hover);
+      color: var(--ink);
+      padding: 0.55rem 0.7rem;
+      resize: vertical;
+    }
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; scroll-behavior: auto !important; }
     }
@@ -462,8 +472,8 @@
         <section class="step">
           <h2>4　配音</h2>
           <div class="tools">
-            <button type="button" @click="reveal">在访达中打开</button>
-            <a :href="'/api/voiceover/' + bench.theme + '.zip'">下载全部</a>
+            <button type="button" @click="reveal">打开所在文件夹</button>
+            <button type="button" @click="downloadAll">下载全部</button>
           </div>
           <p class="status" x-show="revealMsg" x-text="revealMsg"></p>
           <template x-for="line in bench.voice" :key="line.file">
@@ -472,10 +482,12 @@
               <div>
                 <div x-text="line.speaker"></div>
                 <audio controls :src="line.url"></audio>
-                <p class="voice-text" x-text="line.text"></p>
+                <textarea class="voice-edit" x-model="line.text"></textarea>
                 <div class="voice-actions">
-                  <a :href="line.url" :download="line.file">下载</a>
+                  <button type="button" @click="resynth(line)" :disabled="!!line.busy" x-text="line.busy ? '配音中' : '重新配音'"></button>
+                  <button type="button" @click="downloadLine(line)">下载</button>
                 </div>
+                <p class="status" x-show="line.note" x-text="line.note"></p>
               </div>
             </div>
           </template>
@@ -497,6 +509,56 @@
     };
     const FEISHU = /https?:\/\/[^\s)>\]]*feishu\.cn\/(?:wiki|docx)\/[A-Za-z0-9]+/;
 
+    function hostCall() {
+      if (window.dex && typeof window.dex.call === "function") return window.dex.call.bind(window.dex);
+      if (window.hub && typeof window.hub.call === "function") return window.hub.call.bind(window.hub);
+      return null;
+    }
+
+    function inHub() {
+      return Boolean(hostCall());
+    }
+
+    function bytesFromBase64(b64) {
+      const raw = atob(b64);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+      return bytes;
+    }
+
+    function blobUrl(b64, mime) {
+      return URL.createObjectURL(new Blob([bytesFromBase64(b64)], { type: mime || "application/octet-stream" }));
+    }
+
+    function saveBlob(b64, mime, filename) {
+      const url = blobUrl(b64, mime);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename || "download";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    function clickDownload(url, filename) {
+      const link = document.createElement("a");
+      link.href = url;
+      if (filename) link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    async function callStudio(method, params, viaHttp) {
+      const call = hostCall();
+      if (call) return call("manjuStudioService", method, [params || {}]);
+      const res = await viaHttp();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "请求失败");
+      return data;
+    }
+
     document.addEventListener("alpine:init", () => {
       Alpine.data("studio", () => ({
         screen: "intake",
@@ -505,6 +567,7 @@
         sections: [],
         fileName: "",
         stagedPath: "",
+        scriptText: "",
         dragging: false,
         busy: false,
         error: "",
@@ -521,15 +584,23 @@
           return Boolean(found) && found[0] === url;
         },
         get canStart() {
-          const hasSource = Boolean(this.stagedPath) || this.feishuOk;
+          const hasSource = Boolean(this.stagedPath) || Boolean(this.scriptText) || this.feishuOk;
           return hasSource && this.sections.length > 0;
         },
         async init() {
-          await this.loadRecent();
+          try {
+            await this.loadRecent();
+          } catch (err) {
+            this.error = err && err.message ? err.message : "历史记录没有读到";
+          }
         },
         async openHistory() {
           this.returnScreen = this.screen === "history" ? "intake" : this.screen;
-          await this.loadRecent();
+          try {
+            await this.loadRecent();
+          } catch (err) {
+            this.error = err && err.message ? err.message : "历史记录没有读到";
+          }
           this.screen = "history";
           window.scrollTo(0, 0);
         },
@@ -539,13 +610,13 @@
           window.scrollTo(0, 0);
         },
         async loadRecent() {
-          const res = await fetch("/api/recent");
-          const data = await res.json();
+          const data = await callStudio("recent", {}, () => fetch("/api/recent"));
           this.recent = data.recent || [];
         },
         onUrlInput() {
           if (!this.feishuUrl.trim()) return;
           this.stagedPath = "";
+          this.scriptText = "";
           this.fileName = "";
           this.sections = [];
         },
@@ -562,28 +633,44 @@
           this.error = "";
           this.feishuUrl = "";
           this.sections = [];
-          const res = await fetch("/api/stage", {
-            method: "POST",
-            headers: { "X-Filename": encodeURIComponent(file.name) },
-            body: file,
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            this.error = data.error || "上传失败";
+          this.stagedPath = "";
+          this.scriptText = "";
+          this.fileName = file.name;
+          if (inHub()) {
+            this.scriptText = await file.text();
+            await this.preview({ script_text: this.scriptText, filename: file.name });
             return;
           }
-          this.stagedPath = data.path;
-          this.fileName = data.filename;
-          await this.preview({ staged_path: this.stagedPath });
+          try {
+            const res = await fetch("/api/stage", {
+              method: "POST",
+              headers: { "X-Filename": encodeURIComponent(file.name) },
+              body: file,
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              this.error = data.error || "上传失败";
+              this.fileName = "";
+              return;
+            }
+            this.stagedPath = data.path;
+            this.fileName = data.filename;
+            await this.preview({ staged_path: this.stagedPath });
+          } catch (err) {
+            this.fileName = "";
+            this.error = err && err.message ? err.message : "上传失败";
+          }
         },
         clearFile() {
           this.stagedPath = "";
+          this.scriptText = "";
           this.fileName = "";
           this.sections = [];
         },
         async readFeishu() {
           this.error = "";
           this.stagedPath = "";
+          this.scriptText = "";
           this.fileName = "";
           this.sections = [];
           await this.preview({ feishu_url: this.feishuUrl.trim() });
@@ -592,53 +679,63 @@
           this.busy = true;
           this.statusText = "正在读取脚本";
           this.live = this.statusText;
-          const res = await fetch("/api/preview", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          const data = await res.json();
-          this.busy = false;
-          this.statusText = "";
-          if (!res.ok) {
-            this.error = data.error || "读不到脚本";
-            return;
+          try {
+            const data = await callStudio("preview", body, () => fetch("/api/preview", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }));
+            this.sections = data.sections || [];
+          } catch (err) {
+            this.error = err && err.message ? err.message : "读不到脚本";
+          } finally {
+            this.busy = false;
+            this.statusText = "";
           }
-          this.sections = data.sections || [];
+        },
+        sourceBody() {
+          if (this.scriptText) {
+            return { script_text: this.scriptText, filename: this.fileName };
+          }
+          if (this.stagedPath) return { staged_path: this.stagedPath };
+          return { feishu_url: this.feishuUrl.trim() };
         },
         async start() {
           this.error = "";
           this.busy = true;
           this.statusText = "正在读取脚本";
           this.live = this.statusText;
-          const body = {
+          const body = Object.assign(this.sourceBody(), {
             sections: this.sections.map((sec) => ({
               index: sec.index,
               mode: sec.mode,
               title: sec.title,
               start: sec.start,
             })),
-          };
-          if (this.stagedPath) body.staged_path = this.stagedPath;
-          else body.feishu_url = this.feishuUrl.trim();
-          const res = await fetch("/api/jobs", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
           });
-          const data = await res.json();
-          if (!res.ok) {
+          try {
+            const data = await callStudio("createJob", body, () => fetch("/api/jobs", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }));
+            await this.poll(data.id);
+          } catch (err) {
             this.busy = false;
             this.statusText = "";
-            this.error = data.error || "没有开始";
-            return;
+            this.error = err && err.message ? err.message : "没有开始";
           }
-          await this.poll(data.id);
         },
         async poll(id) {
           for (;;) {
-            const res = await fetch("/api/jobs/" + id);
-            const job = await res.json();
+            let job;
+            try {
+              job = await callStudio("getJob", { id }, () => fetch("/api/jobs/" + encodeURIComponent(id)));
+            } catch (err) {
+              this.busy = false;
+              this.error = err && err.message ? err.message : "没有这一次任务";
+              return;
+            }
             this.statusText = STATUS[job.status] || job.status;
             this.live = this.statusText;
             if (job.status === "error") {
@@ -656,18 +753,32 @@
             await new Promise((r) => setTimeout(r, 1500));
           }
         },
+        async attachVoice(theme, line) {
+          if (!inHub() || !line.file) return;
+          const media = await callStudio("readVoice", { theme, file: line.file }, () => Promise.resolve({ ok: false }));
+          if (line.url && String(line.url).startsWith("blob:")) URL.revokeObjectURL(line.url);
+          line.url = blobUrl(media.base64, media.mime || "audio/mpeg");
+        },
         async openBench(theme) {
           this.error = "";
-          const res = await fetch("/api/bench/" + theme);
-          const data = await res.json();
-          if (!res.ok) {
-            this.error = data.error || "打不开这一集";
-            return;
+          try {
+            const data = await callStudio("bench", { theme }, () => fetch("/api/bench/" + encodeURIComponent(theme)));
+            if (inHub()) {
+              for (const line of data.voice || []) {
+                try {
+                  await this.attachVoice(theme, line);
+                } catch (err) {
+                  line.url = "";
+                }
+              }
+            }
+            this.bench = data;
+            this.revealMsg = "";
+            this.screen = "bench";
+            window.scrollTo(0, 0);
+          } catch (err) {
+            this.error = err && err.message ? err.message : "打不开这一集";
           }
-          this.bench = data;
-          this.revealMsg = "";
-          this.screen = "bench";
-          window.scrollTo(0, 0);
         },
         async copy(key, text) {
           let ok = false;
@@ -693,15 +804,65 @@
             if (this.copiedKey === key) this.copiedKey = "";
           }, 1600);
         },
+        async resynth(line) {
+          this.error = "";
+          line.busy = true;
+          line.note = "";
+          const body = {
+            theme: this.bench.theme,
+            id: line.id,
+            text: line.text,
+          };
+          try {
+            const data = await callStudio("resynth", body, () => fetch("/api/voiceover/resynth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }));
+            line.text = data.text || line.text;
+            if (inHub()) await this.attachVoice(this.bench.theme, Object.assign(line, { file: data.file || line.file }));
+            else line.url = data.url || line.url;
+            line.note = "这一条已重新配音";
+          } catch (err) {
+            this.error = err && err.message ? err.message : "这一条没有配上";
+          } finally {
+            line.busy = false;
+          }
+        },
         async reveal() {
           this.revealMsg = "";
-          const res = await fetch("/api/reveal", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ theme: this.bench.theme }),
-          });
-          const data = await res.json();
-          this.revealMsg = res.ok ? "已在访达打开" : (data.error || "打不开文件夹");
+          const body = { theme: this.bench.theme };
+          try {
+            await callStudio("reveal", body, () => fetch("/api/reveal", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }));
+            this.revealMsg = "已打开文件夹";
+          } catch (err) {
+            this.revealMsg = err && err.message ? err.message : "打不开文件夹";
+          }
+        },
+        async downloadAll() {
+          this.error = "";
+          const theme = this.bench.theme;
+          try {
+            if (inHub()) {
+              const data = await callStudio("downloadZip", { theme }, () => Promise.resolve({ ok: false }));
+              saveBlob(data.base64, data.mime || "application/zip", data.filename || "voiceover.zip");
+              return;
+            }
+            clickDownload("/api/voiceover/" + encodeURIComponent(theme) + ".zip", theme + "-voiceover.zip");
+          } catch (err) {
+            this.error = err && err.message ? err.message : "下载失败";
+          }
+        },
+        downloadLine(line) {
+          if (!line.url) {
+            this.error = "这一条还没有音频";
+            return;
+          }
+          clickDownload(line.url, line.file || "voice.mp3");
         },
       }));
     });
