@@ -7,6 +7,9 @@
   "icon": "icon.svg",
   "main": "index.js",
   "uiEntry": "src/studio/static/index.html",
+  "runtime": {
+    "python": { "requirements": "requirements.txt" }
+  },
   "configSchema": {
     "DEEPSEEK_API_KEY": {
       "type": "string",

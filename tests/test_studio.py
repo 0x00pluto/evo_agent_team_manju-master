@@ -785,7 +785,7 @@ class HubWorkerTests(unittest.TestCase):
                 else:
                     os.environ["MANJU_DATA_ROOT"] = old
 
-    def test_resolve_worker_prefers_venv_then_binary(self) -> None:
+    def test_resolve_worker_uses_host_python(self) -> None:
         proc = subprocess.run(
             ["node", "-e", NODE_RESOLVE],
             cwd=REPO,
@@ -798,39 +798,21 @@ class HubWorkerTests(unittest.TestCase):
 
 NODE_RESOLVE = r"""
 const path = require("path");
-const { resolveWorker } = require("./index.js");
-const root = "/plugin";
-const python = path.join(root, ".venv", "bin", "python");
-const darwinBinary = path.join(root, "bin", "darwin", "manju-studio-worker");
-const winBinary = path.join(root, "bin", "win32", "manju-studio-worker.exe");
-const linuxBinary = path.join(root, "bin", "linux", "manju-studio-worker");
-const flatBinary = path.join(root, "bin", "manju-studio-worker");
-const check = (present) => (file) => present.has(file);
-const both = resolveWorker(root, check(new Set([python, darwinBinary, winBinary, linuxBinary])), "darwin");
-if (both.command !== python || both.args.join(" ") !== "-m src.studio.hub_worker") {
-  throw new Error("venv should win: " + JSON.stringify(both));
+const fs = require("fs");
+const os = require("os");
+const { resolveWorker, workerEnv, prepareDataRoot } = require("./index.js");
+const ready = resolveWorker({ python: "/opt/venv/bin/python" });
+if (ready.command !== "/opt/venv/bin/python" || ready.args.join(" ") !== "-m src.studio.hub_worker") {
+  throw new Error("host python should run the module: " + JSON.stringify(ready));
 }
-const frozen = resolveWorker(root, check(new Set([darwinBinary])), "darwin");
-if (frozen.command !== darwinBinary || frozen.args.length !== 0) {
-  throw new Error("darwin binary should run with no args: " + JSON.stringify(frozen));
+const missing = resolveWorker(null);
+if (!missing.error || missing.error.indexOf("运行环境还没准备好") < 0) {
+  throw new Error("missing runtime should explain itself: " + JSON.stringify(missing));
 }
-const windows = resolveWorker(root, check(new Set([darwinBinary, winBinary])), "win32");
-if (windows.command !== winBinary || windows.args.length !== 0) {
-  throw new Error("windows should use the exe: " + JSON.stringify(windows));
+const empty = resolveWorker({});
+if (!empty.error || empty.error.indexOf("运行环境还没准备好") < 0) {
+  throw new Error("empty runtime should explain itself: " + JSON.stringify(empty));
 }
-const linux = resolveWorker(root, check(new Set([linuxBinary])), "linux");
-if (linux.command !== linuxBinary || linux.args.length !== 0) {
-  throw new Error("linux should use its own binary: " + JSON.stringify(linux));
-}
-const flatOnly = resolveWorker(root, check(new Set([flatBinary])), "darwin");
-if (!flatOnly.error || flatOnly.error.indexOf("不完整") < 0) {
-  throw new Error("flat bin path is not an install layout: " + JSON.stringify(flatOnly));
-}
-const missing = resolveWorker(root, check(new Set()));
-if (!missing.error || missing.error.indexOf("不完整") < 0) {
-  throw new Error("missing package should explain itself: " + JSON.stringify(missing));
-}
-const { workerEnv } = require("./index.js");
 const merged = workerEnv(
   { DEEPSEEK_API_KEY: "", PATH: "/usr/bin" },
   { DEEPSEEK_API_KEY: "from-settings" },
@@ -852,23 +834,21 @@ if (split.MANJU_ROOT !== "/code" || split.MANJU_DATA_ROOT !== "/data") {
 if (merged.PATH !== "/usr/bin") {
   throw new Error("unrelated env should stay");
 }
-const fs = require("fs");
-const os = require("os");
-const { pluginDataDir } = require("./index.js");
-const userData = fs.mkdtempSync(path.join(os.tmpdir(), "manju-user-"));
-const installed = path.join(userData, "installed_plugins", "manju-studio");
-fs.mkdirSync(installed, { recursive: true });
-const installedData = pluginDataDir(installed, userData, "manju-studio");
-if (installedData !== path.join(userData, "plugin-data", "manju-studio")) {
-  throw new Error("installed plugin should use plugin-data: " + installedData);
+const data = fs.mkdtempSync(path.join(os.tmpdir(), "manju-data-"));
+const fromDirs = prepareDataRoot({ data: data }, "/unused");
+if (fromDirs !== data) {
+  throw new Error("data root should come from dirs.data: " + fromDirs);
 }
-if (!fs.existsSync(path.join(installedData, "temp")) || !fs.existsSync(path.join(installedData, "output"))) {
-  throw new Error("plugin-data should contain temp and output");
+if (!fs.existsSync(path.join(data, "temp")) || !fs.existsSync(path.join(data, "output"))) {
+  throw new Error("data root should contain temp and output");
 }
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), "manju-repo-"));
-const devData = pluginDataDir(repo, userData, "manju-studio");
-if (devData !== path.resolve(repo)) {
-  throw new Error("dev path should stay in the repo: " + devData);
+const fallback = prepareDataRoot(null, repo);
+if (fallback !== repo) {
+  throw new Error("missing dirs should use the fallback: " + fallback);
+}
+if (!fs.existsSync(path.join(repo, "temp")) || !fs.existsSync(path.join(repo, "output"))) {
+  throw new Error("fallback data root should contain temp and output");
 }
 """
 

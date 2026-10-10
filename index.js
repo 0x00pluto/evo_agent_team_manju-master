@@ -4,7 +4,7 @@ const path = require('path');
 const readline = require('readline');
 
 const ROOT = __dirname;
-const INCOMPLETE = '安装包不完整：没有 .venv/bin/python，也没有当前系统的 worker（bin/darwin、bin/win32 或 bin/linux）';
+const NOT_READY = '运行环境还没准备好';
 const SETTING_KEYS = [
   'DEEPSEEK_API_KEY',
   'DEEPSEEK_BASE_URL',
@@ -14,44 +14,11 @@ const SETTING_KEYS = [
   'MINIMAX_API_KEY',
 ];
 
-function readPluginId(root) {
-  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'plugin.manifest.json'), 'utf8'));
-  const id = manifest && manifest.id;
-  if (typeof id !== 'string' || !id) {
-    throw new Error('插件清单缺少 id');
-  }
-  return id;
-}
-
-function pluginDataDir(here, userData, pluginId) {
-  const installedRoot = path.resolve(userData, 'installed_plugins', pluginId);
-  const resolvedHere = path.resolve(here);
-  const relative = path.relative(installedRoot, resolvedHere);
-  const installed = relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
-  const dataRoot = installed
-    ? path.join(userData, 'plugin-data', pluginId)
-    : resolvedHere;
+function prepareDataRoot(dirs, fallback) {
+  const dataRoot = dirs && dirs.data ? dirs.data : (fallback || ROOT);
   fs.mkdirSync(path.join(dataRoot, 'temp'), { recursive: true });
   fs.mkdirSync(path.join(dataRoot, 'output'), { recursive: true });
   return dataRoot;
-}
-
-function currentUserData() {
-  try {
-    const electron = require('electron');
-    if (electron.app && typeof electron.app.getPath === 'function') {
-      return electron.app.getPath('userData');
-    }
-  } catch (err) {
-    return '';
-  }
-  return '';
-}
-
-function currentDataRoot(here, userData) {
-  const dataHome = userData === undefined ? currentUserData() : userData;
-  if (!dataHome) return path.resolve(here);
-  return pluginDataDir(here, dataHome, readPluginId(here));
 }
 
 function workerEnv(baseEnv, pluginEnv, root, dataRoot) {
@@ -74,19 +41,10 @@ function settingValues(env) {
   return out;
 }
 
-function resolveWorker(root, exists, platform) {
-  const check = exists || ((file) => fs.existsSync(file));
-  const osPlatform = platform || process.platform;
-  const python = path.join(root, '.venv', 'bin', 'python');
-  if (check(python)) {
-    return { command: python, args: ['-m', 'src.studio.hub_worker'] };
-  }
-  const name = osPlatform === 'win32' ? 'manju-studio-worker.exe' : 'manju-studio-worker';
-  const binary = path.join(root, 'bin', osPlatform, name);
-  if (check(binary)) {
-    return { command: binary, args: [] };
-  }
-  return { error: INCOMPLETE };
+function resolveWorker(runtime) {
+  const python = runtime && runtime.python;
+  if (!python) return { error: NOT_READY };
+  return { command: python, args: ['-m', 'src.studio.hub_worker'] };
 }
 
 let pluginCtx = null;
@@ -138,14 +96,18 @@ function ensureChild() {
   if (child && child.exitCode === null && !child.killed) {
     return;
   }
-  const resolved = resolveWorker(ROOT);
+  const runtime = pluginCtx && pluginCtx.runtime;
+  const resolved = resolveWorker(runtime);
   if (resolved.error) {
     throw new Error(resolved.error);
   }
+  const dataRoot = prepareDataRoot(pluginCtx && pluginCtx.dirs, ROOT);
+  // runtime.env 已带虚拟环境和设置。常驻进程的环境停在启动时，密钥改动靠每条请求再带一份。
+  const baseEnv = runtime && runtime.env ? runtime.env : {};
   closeReader();
   const proc = spawn(resolved.command, resolved.args, {
     cwd: ROOT,
-    env: workerEnv(process.env, currentPluginEnv(), ROOT, currentDataRoot(ROOT)),
+    env: workerEnv(baseEnv, null, ROOT, dataRoot),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   child = proc;
@@ -212,7 +174,7 @@ function bind(method) {
 
 module.exports = {
   resolveWorker,
-  pluginDataDir,
+  prepareDataRoot,
   workerEnv,
   settingValues,
   apply(ctx) {

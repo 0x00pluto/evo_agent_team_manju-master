@@ -33,23 +33,13 @@ ln -s "/Users/peng.zhi/Documents/Codex/AI漫剧大师" "/绝对路径/DexBuddy/p
 
 `config.dev.json` 只在未打包的开发版里生效。改 `index.js` 或页面后重启 Dex Buddy。侧边栏名字是「漫剧操作台」。
 
-本仓里有 `.venv/bin/python` 时，插件用它跑源码，改 Python 不用先重打包。发给别人的包不带 `.venv`，也不带 `.env`。没有虚拟环境时，按当前系统启动 `bin/darwin/manju-studio-worker`、`bin/win32/manju-studio-worker.exe` 或 `bin/linux/manju-studio-worker`。当前系统那份不在时，仍报「安装包不完整」。
+本仓开发时要有 `.venv`。清单里的 `runtime.python` 指向 `requirements.txt`。Dex Buddy 在开发目录直接用这份 `.venv`，不另外建环境，也不替你安装依赖。装进 Dex Buddy 之后，宿主按 `requirements.txt` 准备 Python，再用 `python -m src.studio.hub_worker` 跑源码。发给别人的包不带 `.venv`，也不带 `.env`。Python 还没准备好时，报「运行环境还没准备好」。
 
-开发、软链接或 `config.dev.json` 挂进来时，`temp/` 和 `output/` 仍写在本仓。从插件中心或拖放装进 Dex Buddy 之后，这两项目录改写到用户数据目录 `plugin-data/manju-studio/`，覆盖安装不会把成片和 `temp/studio_facts` 清掉。`assets/` 仍从安装目录读。卸载插件时 Dex Buddy 不删这份数据。`dispose` 只结束配音进程。
+开发、软链接或 `config.dev.json` 挂进来时，`ctx.dirs.data` 就是本仓，`temp/` 和 `output/` 仍写在这里。从插件中心装进 Dex Buddy 之后，`ctx.dirs.data` 是用户数据目录 `plugin-data/manju-studio/`。覆盖安装不会把成片和 `temp/studio_facts` 清掉。`assets/` 仍从安装目录读。卸载插件时 Dex Buddy 不删这份数据。`dispose` 只结束 worker。
 
-插件中心发版只改 `plugin.manifest.json` 的 `version`（`X.Y.Z`，不要前导 0），提交并推送，再打 tag `vX.Y.Z` 并推送。`v` 后面必须和清单版本相同。把仓库 `0x00pluto/evo_agent_team_manju-master` 和这个 tag 告诉 Dex Buddy 维护者，由他在 Actions 里运行 Publish Plugin。同事在插件中心安装，不要把下载地址发给他们。
+插件中心发版只改 `plugin.manifest.json` 的 `version`（`X.Y.Z`，不要前导 0），提交并推送，再打 tag `vX.Y.Z` 并推送。`v` 后面必须和清单版本相同。不要再放 `dex-buddy-plugin-pack.json`，仓库根上有这份文件时发布会失败。把仓库 `0x00pluto/evo_agent_team_manju-master` 和这个 tag 告诉 Dex Buddy 维护者，由他在 Actions 里运行 Publish Plugin。同事在插件中心安装，不要把下载地址发给他们。不要在本仓加调用 Dex Buddy 的工作流，也不要把密钥打进包。
 
-根上的 `dex-buddy-plugin-pack.json` 指向 `scripts/dex-buddy-plugin-pack.sh`。Action 在 `macos-latest`、`windows-latest`、`ubuntu-latest` 各跑一次，并用 `DEX_BUDDY_OS` 标明 `darwin`、`win32` 或 `linux`。脚本自己在 `temp/` 里建虚拟环境并安装 PyInstaller，把当前系统的 worker 写到扁平的 `bin/`，再用一条预览做冒烟。不上传，不打 zip。Action 再把三端收进同一份 zip 的 `bin/darwin`、`bin/win32`、`bin/linux`。Mac 产物是这台 Apple Silicon 编译机的架构，不是通用二进制。密钥只在 Dex Buddy 设置页填写，不写进仓库，不打进包。不要把编好的二进制提交进 git，也不要在本仓加调用 Dex Buddy 的工作流。
-
-在 Dex Buddy 里从侧栏底部「设置」选「漫剧操作台」。设置页按「提示词」「飞书」「配音」三组显示：提示词里填 DeepSeek 密钥、模型和接口地址，飞书里填 App ID 与 App Secret，配音里填 MiniMax 密钥，然后点「保存」。改了 `plugin.manifest.json` 里的设置声明后要重启一次 Dex Buddy；之后只改设置不用重启。仓库里的 `.env` 只给本机命令行用，不进 zip。工作台注入的值优先，`.env` 不会盖掉它们。飞书文档用这两个应用凭证走开放平台读取。配音由本仓直接调用 MiniMax，发布包里的 Python 二进制已经带上这段调用。
-
-本机拖进工作台仍用下面这条。它打的是当前机器的单平台 zip，不代替给 Action 调用的脚本。
-
-```bash
-sh scripts/build_plugin_worker.sh
-```
-
-脚本会先检查 PyInstaller。没有就停下来，并提示 `uv pip install pyinstaller`。打完后用一条预览请求做冒烟，再把发布目录收成 zip：`temp/plugin-dist/manju-studio-v<版本>.zip`。对方把 zip 拖进欢迎页，或点「安装插件」。这种来源不参与插件中心的更新。窗口要能访问外网，页面上的字体和 Alpine 来自 CDN。
+在 Dex Buddy 里从侧栏底部「设置」选「漫剧操作台」。设置页按「提示词」「飞书」「配音」三组显示：提示词里填 DeepSeek 密钥、模型和接口地址，飞书里填 App ID 与 App Secret，配音里填 MiniMax 密钥，然后点「保存」。改了 `plugin.manifest.json` 里的设置声明后要重启一次 Dex Buddy。工作台把设置放进子进程环境，每次请求再带一份，所以改一项密钥不用重启常驻 worker。仓库里的 `.env` 只给本机命令行用，不进 zip。工作台注入的值优先，`.env` 不会盖掉它们。飞书文档用这两个应用凭证走开放平台读取。配音由本仓直接调用 MiniMax。窗口要能访问外网，页面上的字体和 Alpine 来自 CDN。
 
 ## 参数
 

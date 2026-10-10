@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "prompt_templates"
 
 
 def default_templates_dir() -> Path:
-    """源码旁的模板；冻结后改读随二进制带上的那一份。"""
-    bundled = Path(getattr(sys, "_MEIPASS", "")) / "src" / "prompt_templates"
-    if bundled.is_dir():
-        return bundled
+    """模板放在源码旁，随仓库一起发给同事。"""
     return TEMPLATES_DIR
 
 
