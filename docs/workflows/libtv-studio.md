@@ -37,7 +37,7 @@ ln -s "/Users/peng.zhi/Documents/Codex/AI漫剧大师" "/绝对路径/DexBuddy/p
 
 开发、软链接或 `config.dev.json` 挂进来时，`ctx.dirs.data` 就是本仓，`temp/` 和 `output/` 仍写在这里。从插件中心装进 Dex Buddy 之后，`ctx.dirs.data` 是用户数据目录 `plugin-data/manju-studio/`。覆盖安装不会把成片和 `temp/studio_facts` 清掉。`assets/` 仍从安装目录读。卸载插件时 Dex Buddy 不删这份数据。`dispose` 只结束 worker。
 
-插件中心发版只改 `plugin.manifest.json` 的 `version`（`X.Y.Z`，不要前导 0），提交并推送，再打 tag `vX.Y.Z` 并推送。`v` 后面必须和清单版本相同。不要再放 `dex-buddy-plugin-pack.json`，仓库根上有这份文件时发布会失败。把仓库 `0x00pluto/evo_agent_team_manju-master` 和这个 tag 告诉 Dex Buddy 维护者，由他在 Actions 里运行 Publish Plugin。同事在插件中心安装，不要把下载地址发给他们。不要在本仓加调用 Dex Buddy 的工作流，也不要把密钥打进包。
+插件中心发版只改 `plugin.manifest.json` 的 `version`（`X.Y.Z`，不要前导 0），提交并推送，再打 tag `vX.Y.Z` 并推送。`v` 后面必须和清单版本相同。根上的 `dex-buddy-plugin.pack` 列出要装给同事的路径：清单、入口、图标、`requirements.txt`、`src/` 和 `assets/`。测试、文档和命令行脚本不进这份 zip。这不是已删除的 `dex-buddy-plugin-pack.json`，仓库根上还有那份旧文件时发布会失败。把仓库 `0x00pluto/evo_agent_team_manju-master` 和这个 tag 告诉 Dex Buddy 维护者，由他在 Actions 里运行 Publish Plugin。同事在插件中心安装，不要把下载地址发给他们。不要在本仓加调用 Dex Buddy 的工作流，也不要把密钥打进包。
 
 在 Dex Buddy 里从侧栏底部「设置」选「漫剧操作台」。设置页按「提示词」「飞书」「配音」三组显示：提示词里填 DeepSeek 密钥、模型和接口地址，飞书里填 App ID 与 App Secret，配音里填 MiniMax 密钥，然后点「保存」。改了 `plugin.manifest.json` 里的设置声明后要重启一次 Dex Buddy。工作台把设置放进子进程环境，每次请求再带一份，所以改一项密钥不用重启常驻 worker。仓库里的 `.env` 只给本机命令行用，不进 zip。工作台注入的值优先，`.env` 不会盖掉它们。飞书文档用这两个应用凭证走开放平台读取。配音由本仓直接调用 MiniMax。窗口要能访问外网，页面上的字体和 Alpine 来自 CDN。
 

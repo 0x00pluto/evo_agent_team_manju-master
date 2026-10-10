@@ -1,0 +1,7 @@
+# 插件中心安装包只收这些路径。目录行必须带结尾斜杠。
+plugin.manifest.json
+index.js
+icon.svg
+requirements.txt
+src/
+assets/
