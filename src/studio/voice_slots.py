@@ -393,15 +393,6 @@ def subject_token(name: str, slot_id: str) -> str:
     return tail
 
 
-def classify_account_voice(voice_id: str, slots: list[dict[str, Any]]) -> str:
-    for slot in slots:
-        if str(slot.get("account_voice_id") or "") == voice_id and str(slot.get("name") or "").strip():
-            return str(slot["name"])
-    if re.fullmatch(r"Dh\d+IP\d+", voice_id) or voice_id.startswith("PengJingIP"):
-        return "数字人项目"
-    return "认不出"
-
-
 def _cited_themes(data_root: Path) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     output = Path(data_root) / "output"
@@ -423,54 +414,6 @@ def _cited_themes(data_root: Path) -> dict[str, list[str]]:
             if theme not in themes:
                 themes.append(theme)
     return found
-
-
-def account_voice_rows(
-    data_root: Path,
-    code_root: Path,
-    *,
-    voices: Callable[[], list[dict[str, Any]]] | None = None,
-) -> list[dict[str, Any]]:
-    from src.minimax_clone import list_cloning_voices
-
-    rows = (voices or list_cloning_voices)()
-    slots = load_slots(data_root, code_root)
-    cited = _cited_themes(data_root)
-    shown: list[dict[str, Any]] = []
-    for row in rows:
-        voice_id = str(row.get("voice_id") or "")
-        shown.append(
-            {
-                "voice_id": voice_id,
-                "created_time": str(row.get("created_time") or ""),
-                "label": classify_account_voice(voice_id, slots),
-                "themes": cited.get(voice_id, []),
-            }
-        )
-    return shown
-
-
-def delete_account_voice(data_root: Path, code_root: Path, voice_id: str) -> dict[str, Any]:
-    from src.minimax_clone import delete_cloned_voice
-
-    voice = str(voice_id or "").strip()
-    if not voice:
-        raise ValueError("没有这个声音")
-    delete_cloned_voice(voice)
-    with _lock:
-        slots = load_slots(data_root, code_root)
-        changed = False
-        for slot in slots:
-            if str(slot.get("account_voice_id") or "") != voice:
-                continue
-            slot["account_voice_id"] = ""
-            slot["status"] = "not_ready"
-            slot["model"] = ""
-            slot["error"] = "这个编号已从账号删除"
-            changed = True
-        if changed:
-            save_slots(data_root, slots)
-    return {"ok": True, "voice_id": voice}
 
 
 def _adopt_packaged(data_root: Path, code_root: Path, slot_id: str, packaged: str) -> dict[str, Any]:

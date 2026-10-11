@@ -22,7 +22,6 @@ from src.studio.jobs import resynth_line, run_pipeline  # noqa: E402
 from src.studio.jobs import Job  # noqa: E402
 from src.studio.voice_slots import (  # noqa: E402
     bind_speaker,
-    classify_account_voice,
     load_slots,
     perform_clone,
     public_slot,
@@ -127,13 +126,6 @@ class SlotTests(unittest.TestCase):
             slots = load_slots(root, REPO)
             self.assertEqual(slots[0]["account_voice_id"], "AiEnterpriseOwner")
             self.assertEqual(slots[0]["status"], "ready")
-
-    def test_account_voice_label(self) -> None:
-        slots = [{"account_voice_id": "ManjuSample20261011230501", "name": "样品"}]
-        self.assertEqual(classify_account_voice("ManjuSample20261011230501", slots), "样品")
-        self.assertEqual(classify_account_voice("Dh6IP20260814104340", []), "数字人项目")
-        self.assertEqual(classify_account_voice("PengJingIP20260729160021", []), "数字人项目")
-        self.assertEqual(classify_account_voice("moss_audio_example", []), "认不出")
 
     def test_limits_reject_before_clone(self) -> None:
         with self.assertRaises(SampleError):
