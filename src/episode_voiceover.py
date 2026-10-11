@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -13,7 +14,9 @@ from src.minimax_tts import synthesize_to_mp3
 SPEAKER_SLUG = {
     "招商顾问": "advisor",
     "企业主": "owner",
+    "旁白": "narration",
 }
+VoiceOf = Callable[[dict[str, Any]], tuple[str, str]]
 
 
 def load_voice(slug: str, repo_root: Path | None = None) -> dict:
@@ -28,7 +31,25 @@ def load_voice(slug: str, repo_root: Path | None = None) -> dict:
 
 
 def speaker_file_slug(speaker: str) -> str:
-    return SPEAKER_SLUG.get(speaker, speaker.replace(" ", "-"))
+    known = SPEAKER_SLUG.get(speaker)
+    if known:
+        return known
+    digest = hashlib.sha1(speaker.encode("utf-8")).hexdigest()[:8]
+    return f"spk{digest}"
+
+
+def legacy_line_voice(line: dict[str, Any], repo_root: Path) -> tuple[str, str]:
+    """没有本集绑定时，用这一条已经写下的 voice_id；只有旧清单才回退 voice_slug。"""
+    voice_id = str(line.get("voice_id") or "").strip()
+    model = str(line.get("model") or "speech-2.8-hd")
+    if voice_id:
+        return voice_id, model
+    slug = str(line.get("voice_slug") or "").strip()
+    if not slug:
+        who = str(line.get("speaker") or line.get("id") or "这一条")
+        raise RuntimeError(f"{who} 没有可用音色")
+    voice = load_voice(slug, repo_root)
+    return str(voice["voice_id"]), str(voice.get("model") or "speech-2.8-hd")
 
 
 def merge_result_lines(previous: list, updates: list) -> list:
@@ -89,6 +110,7 @@ def synthesize_manifest(
     dry_run: bool = False,
     repo_root: Path | None = None,
     log: Callable[[str], None] | None = None,
+    voice_of: VoiceOf | None = None,
 ) -> None:
     """按清单出 MP3。失败抛 RuntimeError。不写 stdout，免得弄脏 Hub 的 JSON 行。"""
     root = repo_root or plugin_root()
@@ -118,9 +140,10 @@ def synthesize_manifest(
             continue
         text = line["text"]
         # 引号必须原样；禁止剥引号。仅信任清单正文。
-        voice = load_voice(line["voice_slug"], root)
-        voice_id = voice["voice_id"]
-        model = voice.get("model") or "speech-2.8-hd"
+        if voice_of is not None:
+            voice_id, model = voice_of(line)
+        else:
+            voice_id, model = legacy_line_voice(line, root)
         file_slug = speaker_file_slug(line["speaker"])
         stem = f"{lid}_{file_slug}"
         text_file = dest / f"{stem}.txt"
@@ -130,7 +153,7 @@ def synthesize_manifest(
             "id": lid,
             "segment": line.get("segment"),
             "speaker": line["speaker"],
-            "voice_slug": line["voice_slug"],
+            "voice_slug": line.get("voice_slug") or "",
             "voice_id": voice_id,
             "model": model,
             "text_file": str(text_file),

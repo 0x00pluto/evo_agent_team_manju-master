@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="studio">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,54 +7,46 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            paper: "#ffffff",
-            ink: "#171717",
-            muted: "#6b6b6b",
-            line: "#ececec",
-            hover: "#f3f3f3",
-            danger: "#8d3a2f",
-            ok: "#2d6a4f",
-          },
-        },
-      },
-      corePlugins: { preflight: false },
-    };
-  </script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
   <style>
-    :root {
+    [data-theme="studio"] {
       color-scheme: light;
-      --ink: #171717;
-      --muted: #6b6b6b;
-      --paper: #ffffff;
-      --line: #ececec;
-      --hover: #f3f3f3;
-      --danger: #8d3a2f;
-      --ok: #2d6a4f;
+      --color-base-100: #ffffff;
+      --color-base-200: #f3f3f3;
+      --color-base-300: #ececec;
+      --color-base-content: #171717;
+      --color-primary: #171717;
+      --color-primary-content: #ffffff;
+      --color-secondary: #6b6b6b;
+      --color-secondary-content: #ffffff;
+      --color-accent: #171717;
+      --color-accent-content: #ffffff;
+      --color-neutral: #171717;
+      --color-neutral-content: #ffffff;
+      --color-info: #171717;
+      --color-info-content: #ffffff;
+      --color-success: #2d6a4f;
+      --color-success-content: #ffffff;
+      --color-warning: #6b6b6b;
+      --color-warning-content: #ffffff;
+      --color-error: #8d3a2f;
+      --color-error-content: #ffffff;
+      --radius-selector: 0.25rem;
+      --radius-field: 0.25rem;
+      --radius-box: 0.25rem;
+      --size-selector: 0.25rem;
+      --size-field: 0.25rem;
+      --border: 1px;
+      --depth: 0;
+      --noise: 0;
     }
+    html { scrollbar-gutter: stable; }
     [x-cloak] { display: none !important; }
-    * { box-sizing: border-box; }
     body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--paper);
-      color: var(--ink);
       font-family: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
-      line-height: 1.55;
-      -webkit-font-smoothing: antialiased;
-    }
-    button, textarea, a { font: inherit; }
-    button { cursor: pointer; }
-    button:disabled { cursor: not-allowed; opacity: 0.45; }
-    :focus-visible {
-      outline: 2px solid var(--ink);
-      outline-offset: 2px;
     }
     .serif { font-family: "Noto Serif SC", "Songti SC", serif; }
     .mono {
@@ -62,446 +54,309 @@
       font-size: 0.78rem;
       line-height: 1.55;
     }
-    .topbar {
-      max-width: 880px;
-      margin: 0 auto;
-      padding: 1.1rem 1.25rem 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .pulse {
+      position: relative;
+      height: 4px;
+      overflow: hidden;
+      background: var(--color-base-300);
     }
-    .ghost {
-      min-height: 44px;
-      padding: 0 0.9rem;
-      border: 1px solid var(--line);
-      background: transparent;
-      color: var(--ink);
+    .pulse span {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -46%;
+      width: 46%;
+      background: linear-gradient(90deg, transparent, var(--color-base-content) 45%, var(--color-base-content) 55%, transparent);
+      animation: pulse-flow 1.15s linear infinite;
     }
-    .shell { max-width: 880px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-    .intake {
-      min-height: calc(100vh - 6.5rem);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    @keyframes pulse-flow {
+      from { transform: translateX(0); }
+      to { transform: translateX(350%); }
     }
-    .intake .composer {
-      position: static;
-      width: 100%;
-      margin: 0;
-      transform: translateY(-2rem);
-    }
-    .intake.stacked {
-      align-items: flex-start;
-      padding-top: 1.5rem;
-    }
-    .intake.stacked .composer { transform: none; }
-    .kicker {
-      margin: 0 0 0.35rem;
-      color: var(--ink);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-    }
-    h1 {
-      margin: 0;
-      font-size: 2.15rem;
-      font-weight: 600;
-      letter-spacing: -0.03em;
-      line-height: 1.2;
-    }
-    .lead { margin: 0.7rem 0 0; color: var(--muted); max-width: 38rem; }
-    .recent { list-style: none; margin: 1.75rem 0 0; padding: 0; }
-    .recent button {
-      display: flex;
-      width: 100%;
-      justify-content: space-between;
-      gap: 1rem;
-      text-align: left;
-      background: transparent;
-      border: 0;
-      border-bottom: 1px solid var(--line);
-      padding: 0.85rem 0;
-      color: var(--ink);
-      min-height: 44px;
-    }
-    .recent button:hover { background: var(--hover); }
-    .recent small { color: var(--muted); }
-    .composer {
-      position: sticky;
-      bottom: 0.75rem;
-      margin-top: 2rem;
-      background: var(--paper);
-      border: 1px solid var(--line);
-      box-shadow: 0 12px 40px rgba(23, 23, 23, 0.06);
-      padding: 0.75rem;
-    }
-    .composer.drag { border-color: var(--ink); }
-    textarea {
-      width: 100%;
-      min-height: 7.5rem;
-      resize: vertical;
-      border: 0;
-      background: transparent;
-      color: var(--ink);
-      padding: 0.35rem 0.35rem 0.5rem;
-    }
-    textarea::placeholder, .url::placeholder { color: var(--muted); }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      padding: 0.35rem 0.35rem 0.15rem;
-    }
-    .field span {
-      font-size: 0.78rem;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-    }
-    .url {
-      width: 100%;
-      min-height: 44px;
-      border: 0;
-      border-bottom: 1px solid var(--line);
-      background: transparent;
-      color: var(--ink);
-      padding: 0.35rem 0;
-    }
-    .choices {
-      list-style: none;
-      margin: 0.35rem 0 0;
-      padding: 0.2rem 0.35rem 0;
-      max-height: 46vh;
-      overflow: auto;
-    }
-    .choices li {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 0.75rem;
-      align-items: center;
-      padding: 0.7rem 0;
-      border-top: 1px solid var(--line);
-    }
-    .choices strong { font-weight: 600; }
-    .choices p { margin: 0.2rem 0 0; color: var(--muted); font-size: 0.88rem; }
-    .seg { display: flex; gap: 0.35rem; }
-    .seg label {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      min-height: 44px;
-      padding: 0 0.7rem;
-      border: 1px solid var(--line);
-      color: var(--ink);
-    }
-    .seg label:has(input:checked) {
-      border-color: var(--ink);
-      color: var(--ink);
-    }
-    @media (max-width: 700px) {
-      .choices li { grid-template-columns: 1fr; }
-    }
-    .bar {
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      padding-top: 0.35rem;
-    }
-    .file {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      min-height: 44px;
-      padding: 0 0.85rem;
-      border: 1px solid var(--line);
-      background: transparent;
-      color: var(--ink);
-    }
-    .file input { display: none; }
-    .chip {
-      color: var(--muted);
-      font-size: 0.85rem;
-    }
-    .chip button {
-      border: 0;
-      background: transparent;
-      color: var(--ink);
-      min-height: 44px;
-      padding: 0 0.25rem;
-    }
-    .go {
-      margin-left: auto;
-      min-height: 44px;
-      padding: 0 1.15rem;
-      border: 1px solid var(--line);
-      background: var(--hover);
-      color: var(--ink);
-      font-weight: 600;
-    }
-    .err { color: var(--danger); margin: 0.6rem 0 0; white-space: pre-wrap; }
-    .status { color: var(--muted); margin: 0.45rem 0 0; }
-    .cut {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-      margin: 1.25rem 0 2rem;
-      padding-top: 1rem;
-      border-top: 1px solid var(--line);
-    }
-    @media (max-width: 700px) { .cut { grid-template-columns: 1fr; } }
-    .cut h2, .step h2 {
-      margin: 0 0 0.45rem;
-      font-size: 0.78rem;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      font-weight: 600;
-    }
-    .cut li { margin: 0.2rem 0; }
-    .step { margin: 0 0 2.25rem; }
-    .step > h2 {
-      font-family: "Noto Serif SC", serif;
-      font-size: 1.35rem;
-      color: var(--ink);
-      letter-spacing: 0;
-      font-weight: 600;
-    }
-    .card {
-      border-top: 1px solid var(--line);
-      padding: 0.9rem 0 1rem;
-    }
-    .card-head {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 0.75rem;
-      margin-bottom: 0.55rem;
-    }
-    .card-head strong { font-weight: 600; }
-    .card-head span { color: var(--muted); font-size: 0.85rem; }
-    .copy {
-      flex: none;
-      min-height: 44px;
-      padding: 0 0.8rem;
-      border: 1px solid var(--ink);
-      background: transparent;
-      color: var(--ink);
-    }
-    .copy.on { border-color: var(--line); color: var(--ok); }
     pre.prompt {
-      margin: 0;
       max-height: 11rem;
-      overflow: auto;
+      max-width: 100%;
       white-space: pre-wrap;
-      background: var(--hover);
-      padding: 0.8rem 0.9rem;
-      color: var(--ink);
-    }
-    .voice-row {
-      display: grid;
-      grid-template-columns: 3.2rem 1fr;
-      gap: 0.75rem;
-      padding: 0.85rem 0;
-      border-top: 1px solid var(--line);
-    }
-    audio { width: 100%; height: 36px; }
-    .voice-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.45rem; }
-    .voice-actions a, .voice-actions button, .tools a, .tools button, .back {
-      min-height: 44px;
-      display: inline-flex;
-      align-items: center;
-      padding: 0 0.85rem;
-      border: 1px solid var(--line);
-      background: transparent;
-      color: var(--ink);
-      text-decoration: none;
-    }
-    .tools { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.4rem 0 0.2rem; }
-    .back { margin-top: 0.5rem; }
-    .voice-edit {
-      width: 100%;
-      min-height: 4.5rem;
-      margin-top: 0.45rem;
-      border: 1px solid var(--line);
-      background: var(--hover);
-      color: var(--ink);
-      padding: 0.55rem 0.7rem;
-      resize: vertical;
+      overflow-wrap: anywhere;
     }
     @media (prefers-reduced-motion: reduce) {
-      * { transition: none !important; scroll-behavior: auto !important; }
+      .pulse span { animation: none !important; }
     }
   </style>
 </head>
-<body x-data="studio()" x-init="init()" x-cloak>
-  <header class="topbar">
-    <p class="kicker" style="margin:0">AI漫剧大师</p>
-    <button type="button" class="ghost" @click="openHistory()">历史记录</button>
-  </header>
-  <main class="shell">
+<body class="bg-base-100 text-base-content min-h-screen" x-data="studio()" x-init="init()" x-cloak>
+  <div class="navbar border-b border-base-300 px-5 max-w-[1120px] mx-auto">
+    <div class="navbar-start">
+      <p class="font-semibold tracking-wide">AI漫剧大师</p>
+    </div>
+    <div class="navbar-end">
+      <button type="button" class="btn btn-ghost" @click="openHistory()">
+        <iconify-icon icon="lucide:history" aria-hidden="true"></iconify-icon>
+        历史记录
+      </button>
+    </div>
+  </div>
+
+  <main class="max-w-[1120px] w-full min-w-0 mx-auto px-5 pb-16 overflow-x-clip">
+    <ul class="steps w-full my-6" x-show="screen !== 'history'">
+      <li class="step" :class="stepOn === 0 ? 'step-primary' : ''">加载脚本</li>
+      <li class="step" :class="stepOn === 1 ? 'step-primary' : ''">生成提示词</li>
+      <li class="step" :class="stepOn === 2 ? 'step-primary' : ''">查看结果</li>
+    </ul>
+
     <template x-if="screen === 'intake'">
-      <div class="intake" :class="sections.length ? 'stacked' : ''">
-        <form class="composer" :class="dragging ? 'drag' : ''" @submit.prevent="start"
-              @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
-          <label class="field">
-            <span>飞书文档</span>
-            <input class="url" type="url" x-model="feishuUrl" placeholder="粘贴飞书 wiki 或 docx 链接" @input="onUrlInput" />
-          </label>
-          <div class="bar">
-            <button type="button" class="ghost" @click="readFeishu" :disabled="busy || !feishuOk">读取</button>
-            <label class="file">
-              上传脚本
-              <input type="file" accept=".md,.markdown,.txt,text/plain" @change="onFile($event)" />
+      <form class="grid gap-4" :class="dragging ? 'outline outline-base-content' : ''" @submit.prevent="start"
+            @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
+        <div>
+          <h1 class="serif text-3xl font-semibold">生成提示词</h1>
+          <p class="mt-2 text-base-content/60 max-w-xl">加载脚本并为每段选好之后，这一步只写出人物、场景和分镜。配音要等角色声音都选好。</p>
+        </div>
+        <div class="alert alert-soft">
+          <iconify-icon icon="lucide:clapperboard" aria-hidden="true"></iconify-icon>
+          <span>这一步不配音。还没填 MiniMax 密钥，或声音还不能用时，提示词仍然可以复制。</span>
+        </div>
+        <fieldset class="fieldset bg-base-100 border border-base-300 p-4">
+          <legend class="fieldset-legend">飞书文档</legend>
+          <input class="input w-full" type="url" x-model="feishuUrl" placeholder="粘贴飞书 wiki 或 docx 链接" @input="onUrlInput" />
+          <div class="pulse mt-3" x-show="busy" aria-hidden="true"><span></span></div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <label class="text-sm text-base-content/60" for="split-with">分段</label>
+            <select id="split-with" class="select" x-model="splitWith">
+              <option value="program">按标题分段</option>
+              <option value="model">让模型分段</option>
+            </select>
+            <button type="button" class="btn" @click="readFeishu" :disabled="busy || !feishuOk">加载</button>
+            <label class="flex items-center gap-2">
+              <span>上传脚本</span>
+              <input class="file-input" type="file" accept=".md,.markdown,.txt,text/plain" @change="onFile($event)" />
             </label>
-            <span class="chip" x-show="fileName">
+            <span class="badge badge-ghost" x-show="fileName">
               <span x-text="fileName"></span>
-              <button type="button" @click="clearFile">移除</button>
+              <button type="button" class="btn btn-ghost btn-xs" @click="clearFile">移除</button>
             </span>
           </div>
-          <ul class="choices" x-show="sections.length">
-            <template x-for="sec in sections" :key="sec.index">
-              <li>
-                <div>
-                  <strong x-text="sec.title"></strong>
-                  <p x-text="sec.preview"></p>
-                </div>
-                <div class="seg">
-                  <label><input type="radio" :name="'mode-' + sec.index" value="shot" x-model="sec.mode" />分镜演绎</label>
-                  <label><input type="radio" :name="'mode-' + sec.index" value="voice" x-model="sec.mode" />只配音</label>
-                </div>
-              </li>
-            </template>
-          </ul>
-          <div class="bar">
-            <button class="go" type="submit" :disabled="busy || !canStart" x-text="busy ? '进行中' : '开始'"></button>
-          </div>
-          <p class="status" x-show="statusText" x-text="statusText"></p>
-          <p class="err" x-show="error" x-text="error"></p>
-        </form>
-      </div>
+        </fieldset>
+        <ul class="divide-y divide-base-300" x-show="sections.length">
+          <template x-for="sec in sections" :key="sec.index">
+            <li class="py-3 flex flex-row flex-wrap items-center justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <strong x-text="sec.title"></strong>
+                <p class="text-sm text-base-content/60" x-text="sec.preview"></p>
+              </div>
+              <div class="ml-auto flex shrink-0 gap-4">
+                <label class="flex items-center gap-2">
+                  <input type="radio" class="radio radio-sm" :name="'mode-' + sec.index" value="shot" x-model="sec.mode" />
+                  生成分镜
+                </label>
+                <label class="flex items-center gap-2">
+                  <input type="radio" class="radio radio-sm" :name="'mode-' + sec.index" value="voice" x-model="sec.mode" />
+                  只配音
+                </label>
+              </div>
+            </li>
+          </template>
+        </ul>
+        <div class="flex justify-end">
+          <button class="btn btn-primary" type="submit" :disabled="busy || !canStart">
+            <span class="loading loading-spinner loading-sm" x-show="busy"></span>
+            <span x-text="busy ? '进行中' : '生成提示词'"></span>
+          </button>
+        </div>
+        <p class="text-base-content/60" x-show="statusText" x-text="statusText" role="status"></p>
+        <div class="alert alert-error" x-show="error" role="alert">
+          <span x-text="error"></span>
+        </div>
+      </form>
     </template>
 
     <template x-if="screen === 'history'">
       <div>
-        <button type="button" class="back" @click="closeHistory()">返回</button>
-        <h1 class="serif">历史记录</h1>
-        <ul class="recent" x-show="recent.length">
+        <button type="button" class="btn btn-ghost mb-4" @click="closeHistory()">返回</button>
+        <h1 class="serif text-3xl font-semibold">历史记录</h1>
+        <ul class="mt-4" x-show="recent.length">
           <template x-for="item in recent" :key="item.theme">
-            <li>
-              <button type="button" @click="openBench(item.theme)">
+            <li class="border-b border-base-300">
+              <button type="button" class="btn btn-ghost w-full justify-between" @click="openBench(item.theme)">
                 <span x-text="item.title"></span>
-                <small x-text="item.theme"></small>
+                <small class="text-base-content/60" x-text="item.theme"></small>
               </button>
             </li>
           </template>
         </ul>
-        <p class="lead" x-show="!recent.length">还没有生成过的集。</p>
+        <p class="mt-4 text-base-content/60" x-show="!recent.length">还没有生成过。</p>
       </div>
     </template>
 
     <template x-if="screen === 'bench' && bench">
-      <div>
-        <h1 class="serif" x-text="bench.title"></h1>
-        <button type="button" class="back" @click="screen = 'intake'">回到对话框</button>
-        <p class="err" x-show="error" x-text="error"></p>
-        <p class="err" x-show="benchVoiceError" x-text="benchVoiceError"></p>
-        <div class="cut">
-          <div>
-            <h2>出镜</h2>
-            <ul>
-              <template x-for="row in bench.summary.shots" :key="row.id">
-                <li><span x-text="row.id"></span>　<span x-text="row.preview"></span></li>
-              </template>
-              <li x-show="!bench.summary.shots.length">这一集没有出镜分镜</li>
-            </ul>
-          </div>
-          <div>
-            <h2>只配音</h2>
-            <ul>
-              <template x-for="row in bench.summary.voice_only" :key="row.id">
-                <li><span x-text="row.id"></span>　<span x-text="row.preview"></span></li>
-              </template>
-              <li x-show="!bench.summary.voice_only.length">没有单独的旁白条</li>
-            </ul>
-          </div>
+      <div class="min-w-0 max-w-full overflow-x-clip">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <h1 class="serif text-3xl font-semibold" x-text="bench.title"></h1>
+          <button type="button" class="btn" @click="screen = 'intake'">返回</button>
+        </div>
+        <div class="alert alert-error mt-4" x-show="error" role="alert"><span x-text="error"></span></div>
+        <div class="alert alert-error mt-4" x-show="benchVoiceError" role="alert"><span x-text="benchVoiceError"></span></div>
+
+        <div role="tablist" class="tabs tabs-border mt-6">
+          <input type="radio" name="bench_tab" class="tab" aria-label="人物" value="people" x-model="benchTab" />
+          <input type="radio" name="bench_tab" class="tab" aria-label="场景" value="scenes" x-model="benchTab" />
+          <input type="radio" name="bench_tab" class="tab" aria-label="分镜" value="shots" x-model="benchTab" />
+          <input type="radio" name="bench_tab" class="tab" aria-label="角色声音" value="cast" x-model="benchTab" />
+          <input type="radio" name="bench_tab" class="tab" aria-label="配音" value="voice" x-model="benchTab" />
         </div>
 
-        <section class="step">
-          <h2>1　人物</h2>
+        <section class="mt-4" x-show="benchTab === 'people'">
           <template x-for="(block, i) in bench.characters" :key="block.name + block.kind">
-            <article class="card">
-              <div class="card-head">
-                <div>
-                  <strong x-text="block.name"></strong>
-                  <span x-text="block.kind"></span>
+            <article class="card card-border bg-base-100 mb-3 min-w-0 max-w-full overflow-hidden">
+              <div class="card-body">
+                <div class="flex items-start justify-between gap-3">
+                  <h2 class="card-title min-w-0 flex-1 whitespace-normal text-base"><span x-text="block.name"></span><span class="font-normal text-base-content/60" x-text="block.kind"></span></h2>
+                  <button type="button" class="btn shrink-0" @click="copy('c' + i, block.text)" x-text="copiedKey === 'c' + i ? '已复制' : '复制'"></button>
                 </div>
-                <button type="button" class="copy" :class="copiedKey === 'c' + i ? 'on' : ''" @click="copy('c' + i, block.text)" x-text="copiedKey === 'c' + i ? '已复制' : '复制'"></button>
+                <pre class="mono prompt" x-text="block.text"></pre>
               </div>
-              <pre class="mono prompt" x-text="block.text"></pre>
             </article>
           </template>
         </section>
 
-        <section class="step">
-          <h2>2　场景</h2>
+        <section class="mt-4" x-show="benchTab === 'scenes'">
           <template x-for="(block, i) in bench.scenes" :key="block.id">
-            <article class="card">
-              <div class="card-head">
-                <div>
-                  <strong x-text="block.label"></strong>
+            <article class="card card-border bg-base-100 mb-3 min-w-0 max-w-full overflow-hidden">
+              <div class="card-body">
+                <div class="flex items-start justify-between gap-3">
+                  <h2 class="card-title min-w-0 flex-1 whitespace-normal text-base" x-text="block.label"></h2>
+                  <button type="button" class="btn shrink-0" @click="copy('s' + i, block.text)" x-text="copiedKey === 's' + i ? '已复制' : '复制'"></button>
                 </div>
-                <button type="button" class="copy" :class="copiedKey === 's' + i ? 'on' : ''" @click="copy('s' + i, block.text)" x-text="copiedKey === 's' + i ? '已复制' : '复制'"></button>
+                <pre class="mono prompt" x-text="block.text"></pre>
               </div>
-              <pre class="mono prompt" x-text="block.text"></pre>
             </article>
           </template>
         </section>
 
-        <section class="step">
-          <h2>3　分镜</h2>
-          <p class="lead">按顺序贴进 LibTV。</p>
+        <section class="mt-4" x-show="benchTab === 'shots'">
+          <p class="text-base-content/60 mb-3">按顺序复制到 LibTV。</p>
           <template x-for="block in bench.shots" :key="block.id">
-            <article class="card">
-              <div class="card-head">
-                <strong x-text="block.id"></strong>
-                <button type="button" class="copy" :class="copiedKey === block.id ? 'on' : ''" @click="copy(block.id, block.text)" x-text="copiedKey === block.id ? '已复制' : '复制'"></button>
+            <article class="card card-border bg-base-100 mb-3 min-w-0 max-w-full overflow-hidden">
+              <div class="card-body">
+                <div class="flex items-start justify-between gap-3">
+                  <h2 class="card-title min-w-0 flex-1 whitespace-normal text-base" x-text="block.id"></h2>
+                  <button type="button" class="btn shrink-0" @click="copy(block.id, block.text)" x-text="copiedKey === block.id ? '已复制' : '复制'"></button>
+                </div>
+                <pre class="mono prompt" x-text="block.text"></pre>
               </div>
-              <pre class="mono prompt" x-text="block.text"></pre>
             </article>
           </template>
         </section>
 
-        <section class="step">
-          <h2>4　配音</h2>
-          <div class="tools">
-            <button type="button" @click="reveal">打开所在文件夹</button>
-            <button type="button" @click="downloadAll">下载全部</button>
+        <section class="mt-4" x-show="benchTab === 'cast'">
+          <p class="text-base-content/60" x-show="!castNeeds && !(bench.voice && bench.voice.length)">这一集没有要配的句子。提示词可以直接复制。</p>
+          <p class="text-base-content/60" x-show="!castNeeds && bench.voice && bench.voice.length">这一集用的是以前配好的声音。改某一句不会换声音。</p>
+          <div x-show="castNeeds" class="grid gap-8">
+            <div>
+              <h2 class="font-semibold mb-3">这一集的角色</h2>
+              <div class="overflow-x-auto">
+                <table class="table">
+                  <thead>
+                    <tr><th>角色</th><th>音色</th></tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="row in castRows" :key="row.speaker">
+                      <tr>
+                        <td x-text="row.speaker"></td>
+                        <td>
+                          <select class="select select-sm" x-effect="syncSelect($el, row)" @change="bindRow(row, $event.target.value)">
+                            <option value="">未选择</option>
+                            <template x-for="slot in readySlots" :key="slot.id">
+                              <option :value="slot.id" x-text="slot.name"></option>
+                            </template>
+                          </select>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <h2 class="font-semibold mb-3">音色库</h2>
+              <template x-for="slot in slots" :key="slot.id">
+                <article class="card card-border bg-base-100 mb-3 min-w-0 max-w-full">
+                  <div class="card-body gap-3">
+                    <div class="flex items-center justify-between gap-2">
+                      <h3 class="font-semibold" x-text="slot.name"></h3>
+                      <span class="badge" :class="badgeClass(slot)" x-text="slot.status_label"></span>
+                    </div>
+                    <p class="text-sm text-error" x-show="slot.error" x-text="slot.error"></p>
+                    <div class="flex flex-wrap gap-2">
+                      <button type="button" class="btn btn-sm" x-show="!slot.selectable" @click="cloneSlot(slot)" :disabled="slot.status === 'cloning' || busy">
+                        <span class="loading loading-spinner loading-xs" x-show="slot.status === 'cloning'"></span>
+                        生成可用音色
+                      </button>
+                      <label class="btn btn-sm" x-show="slot.selectable">
+                        换成新声音
+                        <input class="hidden" type="file" accept="video/mp4,.mp4" @change="replaceSlot(slot, $event)" />
+                      </label>
+                    </div>
+                  </div>
+                </article>
+              </template>
+              <fieldset class="fieldset border border-base-300 p-3">
+                <legend class="fieldset-legend">添加音色</legend>
+                <p class="text-sm text-base-content/60">库里没有合适的，可以添加一条。添加的是音色库里的声音，不是只给某一个角色。</p>
+                <input class="input w-full" type="text" x-model="newSlotName" placeholder="声音名称" />
+                <label class="btn btn-sm">
+                  选择音频
+                  <input class="hidden" type="file" accept="video/mp4,.mp4" @change="addSlot($event)" />
+                </label>
+              </fieldset>
+            </div>
           </div>
-          <p class="status" x-show="revealMsg" x-text="revealMsg"></p>
+        </section>
+
+        <section class="mt-4" x-show="benchTab === 'voice'">
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn" x-show="bench.voice.length" @click="reveal">打开所在文件夹</button>
+            <button type="button" class="btn" x-show="bench.voice.length" @click="downloadAll">下载全部</button>
+            <button type="button" class="btn btn-primary" x-show="castNeeds" @click="generateVoice" :disabled="!canVoice || busy" x-text="busy ? '进行中' : '生成配音'"></button>
+          </div>
+          <div class="alert mt-3" role="status" x-show="castNeeds && voiceBlock">
+            <span x-text="voiceBlock"></span>
+          </div>
+          <div class="alert alert-error mt-3" role="status" x-show="castNeeds && !minimaxReady">
+            <span>请在设置里填写 MiniMax 密钥后再生成配音。提示词仍可复制。</span>
+          </div>
+          <p class="text-base-content/60 mt-2" x-show="revealMsg" x-text="revealMsg" role="status"></p>
           <template x-for="line in bench.voice" :key="line.file">
-            <div class="voice-row">
+            <div class="border-t border-base-300 py-4 grid gap-2 sm:grid-cols-[4rem_1fr]">
               <strong x-text="line.id"></strong>
               <div>
                 <div x-text="line.speaker"></div>
                 <audio controls :src="line.url"></audio>
-                <textarea class="voice-edit" x-model="line.text"></textarea>
-                <div class="voice-actions">
-                  <button type="button" @click="resynth(line)" :disabled="!!line.busy" x-text="line.busy ? '配音中' : '重新配音'"></button>
-                  <button type="button" @click="downloadLine(line)">下载</button>
+                <textarea class="textarea w-full mt-2" x-model="line.text"></textarea>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <button type="button" class="btn" @click="resynth(line)" :disabled="!!line.busy" x-text="line.busy ? '配音中' : '重新配音'"></button>
+                  <button type="button" class="btn" @click="downloadLine(line)">下载</button>
                 </div>
-                <p class="status" x-show="line.note" x-text="line.note"></p>
+                <p class="text-sm text-base-content/60" x-show="line.note" x-text="line.note"></p>
               </div>
             </div>
           </template>
-          <p class="status" x-show="!bench.voice.length">还没有 MP3。</p>
+          <p class="text-base-content/60 mt-3" x-show="!bench.voice.length">还没有 MP3。</p>
         </section>
       </div>
     </template>
   </main>
-  <p class="sr" style="position:absolute;left:-9999px" aria-live="polite" x-text="live"></p>
+
+  <div class="toast toast-end toast-bottom" x-show="toast">
+    <div class="alert alert-success" role="status">
+      <span x-text="toast"></span>
+    </div>
+  </div>
+  <p class="sr-only absolute -left-[9999px]" aria-live="polite" x-text="live"></p>
 
   <script>
     const STATUS = {
       queued: "排队",
-      compiling: "正在按勾选整理出镜和配音",
+      compiling: "正在按勾选整理出镜",
       prompting: "正在写提示词",
       voicing: "正在生成配音",
       done: "完成",
@@ -550,6 +405,19 @@
       link.remove();
     }
 
+    function fileBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const raw = String(reader.result || "");
+          const comma = raw.indexOf(",");
+          resolve(comma >= 0 ? raw.slice(comma + 1) : raw);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
     async function callStudio(method, params, viaHttp) {
       const call = hostCall();
       if (call) return call("manjuStudioService", method, [params || {}]);
@@ -564,6 +432,7 @@
         screen: "intake",
         returnScreen: "intake",
         feishuUrl: "",
+        splitWith: "program",
         sections: [],
         fileName: "",
         stagedPath: "",
@@ -575,9 +444,15 @@
         live: "",
         recent: [],
         bench: null,
+        benchTab: "people",
         benchVoiceError: "",
         copiedKey: "",
         revealMsg: "",
+        toast: "",
+        slots: [],
+        minimaxReady: true,
+        newSlotName: "",
+        cloneTimer: 0,
         get feishuOk() {
           const url = this.feishuUrl.trim();
           const found = url.match(FEISHU);
@@ -587,12 +462,46 @@
           const hasSource = Boolean(this.stagedPath) || Boolean(this.scriptText) || this.feishuOk;
           return hasSource && this.sections.length > 0;
         },
+        get stepOn() {
+          if (this.screen === "bench") return 2;
+          if (this.sections.length || this.busy) return 1;
+          return 0;
+        },
+        get castNeeds() {
+          return Boolean(this.bench && this.bench.cast && this.bench.cast.needs_cast);
+        },
+        get castRows() {
+          return (this.bench && this.bench.cast && this.bench.cast.rows) || [];
+        },
+        get readySlots() {
+          return (this.slots || []).filter((slot) => slot.selectable);
+        },
+        get voiceBlock() {
+          return (this.bench && this.bench.cast && this.bench.cast.voice_block) || "";
+        },
+        get canVoice() {
+          return this.castNeeds && this.minimaxReady && !this.voiceBlock;
+        },
+        badgeClass(slot) {
+          if (slot.status === "ready") return "badge-success";
+          if (slot.status === "failed") return "badge-error";
+          if (slot.status === "cloning") return "badge-ghost";
+          return "badge-ghost";
+        },
         async init() {
           try {
             await this.loadRecent();
+            await this.refreshSlots();
           } catch (err) {
             this.error = err && err.message ? err.message : "历史记录没有读到";
           }
+        },
+        note(text) {
+          this.toast = text;
+          this.live = text;
+          setTimeout(() => {
+            if (this.toast === text) this.toast = "";
+          }, 1600);
         },
         async openHistory() {
           this.returnScreen = this.screen === "history" ? "intake" : this.screen;
@@ -612,6 +521,28 @@
         async loadRecent() {
           const data = await callStudio("recent", {}, () => fetch("/api/recent"));
           this.recent = data.recent || [];
+        },
+        async refreshSlots() {
+          const data = await callStudio("listSlots", {}, () => fetch("/api/voice-slots"));
+          this.slots = data.slots || [];
+          this.minimaxReady = data.minimax_ready !== false;
+          if (this.bench) this.bench.minimax_ready = this.minimaxReady;
+        },
+        watchClones() {
+          if (this.cloneTimer) return;
+          if (!this.slots.some((slot) => slot.status === "cloning")) return;
+          this.cloneTimer = setInterval(async () => {
+            try {
+              await this.refreshSlots();
+            } catch (err) {
+              this.error = err && err.message ? err.message : "音色状态没有读到";
+            }
+            if (!this.slots.some((slot) => slot.status === "cloning")) {
+              clearInterval(this.cloneTimer);
+              this.cloneTimer = 0;
+              if (this.bench) await this.openBench(this.bench.theme, true);
+            }
+          }, 1500);
         },
         onUrlInput() {
           if (!this.feishuUrl.trim()) return;
@@ -676,18 +607,20 @@
           await this.preview({ feishu_url: this.feishuUrl.trim() });
         },
         async preview(body) {
+          const request = Object.assign({}, body, { split_with: this.splitWith });
           this.busy = true;
-          this.statusText = "正在读取脚本";
+          this.statusText = this.splitWith === "model" ? "正在让模型分段" : "正在加载脚本";
           this.live = this.statusText;
           try {
-            const data = await callStudio("preview", body, () => fetch("/api/preview", {
+            const data = await callStudio("preview", request, () => fetch("/api/preview", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
+              body: JSON.stringify(request),
             }));
             this.sections = data.sections || [];
+            if (data.script_text) this.scriptText = data.script_text;
           } catch (err) {
-            this.error = err && err.message ? err.message : "读不到脚本";
+            this.error = err && err.message ? err.message : "加载不到脚本";
           } finally {
             this.busy = false;
             this.statusText = "";
@@ -703,7 +636,7 @@
         async start() {
           this.error = "";
           this.busy = true;
-          this.statusText = "正在读取脚本";
+          this.statusText = "正在生成提示词";
           this.live = this.statusText;
           const body = Object.assign(this.sourceBody(), {
             sections: this.sections.map((sec) => ({
@@ -723,7 +656,7 @@
           } catch (err) {
             this.busy = false;
             this.statusText = "";
-            this.error = err && err.message ? err.message : "没有开始";
+            this.error = err && err.message ? err.message : "没有生成";
           }
         },
         async poll(id) {
@@ -759,8 +692,9 @@
           if (line.url && String(line.url).startsWith("blob:")) URL.revokeObjectURL(line.url);
           line.url = blobUrl(media.base64, media.mime || "audio/mpeg");
         },
-        async openBench(theme) {
+        async openBench(theme, keepTab) {
           this.error = "";
+          const tab = keepTab ? this.benchTab : "people";
           try {
             const data = await callStudio("bench", { theme }, () => fetch("/api/bench/" + encodeURIComponent(theme)));
             if (inHub()) {
@@ -773,8 +707,12 @@
               }
             }
             this.bench = data;
+            this.benchTab = tab;
+            this.minimaxReady = data.minimax_ready !== false;
             this.revealMsg = "";
             this.screen = "bench";
+            await this.refreshSlots();
+            this.watchClones();
             window.scrollTo(0, 0);
           } catch (err) {
             this.error = err && err.message ? err.message : "打不开这一集";
@@ -799,10 +737,112 @@
           }
           this.error = "";
           this.copiedKey = key;
-          this.live = "已复制";
+          this.note("已复制");
           setTimeout(() => {
             if (this.copiedKey === key) this.copiedKey = "";
           }, 1600);
+        },
+        syncSelect(el, row) {
+          const id = row.slot_id || "";
+          const _ready = this.readySlots.length;
+          this.$nextTick(() => {
+            if (el.value !== id) el.value = id;
+            void _ready;
+          });
+        },
+        async bindRow(row, slotId) {
+          this.error = "";
+          row.slot_id = slotId;
+          try {
+            const view = await callStudio("bindSlot", {
+              theme: this.bench.theme,
+              speaker: row.speaker,
+              slot_id: slotId,
+            }, () => fetch("/api/voice-slots/bind", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                theme: this.bench.theme,
+                speaker: row.speaker,
+                slot_id: slotId,
+              }),
+            }));
+            this.bench.cast = view;
+          } catch (err) {
+            this.error = err && err.message ? err.message : "没有绑上";
+          }
+        },
+        async cloneSlot(slot) {
+          this.error = "";
+          try {
+            await callStudio("cloneSlot", { id: slot.id }, () => fetch("/api/voice-slots/clone", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: slot.id }),
+            }));
+            await this.refreshSlots();
+            this.watchClones();
+          } catch (err) {
+            this.error = err && err.message ? err.message : "没有生成音色";
+            await this.refreshSlots();
+          }
+        },
+        async sendMedia(method, file, extra) {
+          if (inHub()) {
+            const base64 = await fileBase64(file);
+            return callStudio(method, Object.assign({ filename: file.name, base64 }, extra), () => Promise.resolve({ ok: false }));
+          }
+          const path = method === "addSlot" ? "/api/voice-slots/add" : "/api/voice-slots/replace";
+          const headers = { "X-Filename": encodeURIComponent(file.name) };
+          if (extra.id) headers["X-Slot-Id"] = extra.id;
+          if (extra.name) headers["X-Slot-Name"] = encodeURIComponent(extra.name);
+          const res = await fetch(path, { method: "POST", headers, body: file });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "上传失败");
+          return data;
+        },
+        async replaceSlot(slot, event) {
+          const file = event.target.files && event.target.files[0];
+          event.target.value = "";
+          if (!file) return;
+          this.error = "";
+          try {
+            await this.sendMedia("replaceSlot", file, { id: slot.id });
+            await this.refreshSlots();
+            this.watchClones();
+          } catch (err) {
+            this.error = err && err.message ? err.message : "没有换成新声音";
+          }
+        },
+        async addSlot(event) {
+          const file = event.target.files && event.target.files[0];
+          event.target.value = "";
+          if (!file) return;
+          this.error = "";
+          try {
+            await this.sendMedia("addSlot", file, { name: this.newSlotName });
+            this.newSlotName = "";
+            await this.refreshSlots();
+            this.watchClones();
+          } catch (err) {
+            this.error = err && err.message ? err.message : "没有添加音色";
+          }
+        },
+        async generateVoice() {
+          this.error = "";
+          this.busy = true;
+          this.live = "正在生成配音";
+          try {
+            const data = await callStudio("generateVoice", { theme: this.bench.theme }, () => fetch("/api/voiceover/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ theme: this.bench.theme }),
+            }));
+            await this.poll(data.id);
+          } catch (err) {
+            this.busy = false;
+            this.error = err && err.message ? err.message : "没有生成配音";
+          }
         },
         async resynth(line) {
           this.error = "";
@@ -823,6 +863,7 @@
             if (inHub()) await this.attachVoice(this.bench.theme, Object.assign(line, { file: data.file || line.file }));
             else line.url = data.url || line.url;
             line.note = "这一条已重新配音";
+            this.note("这一条已重新配音");
           } catch (err) {
             this.error = err && err.message ? err.message : "这一条没有配上";
           } finally {

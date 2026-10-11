@@ -19,3 +19,9 @@ assets/**/*.zip
 assets/**/*.7z
 assets/**/*.wav
 assets/**/*.mp3
+!assets/voices/ai-enterprise-owner/voice.mp3
+!assets/voices/female-zhao-shang-lead/voice.mp3
+
+# 本机插槽数据：本账号 voice_id 不入库
+voice-slots.json
+voice-slots/

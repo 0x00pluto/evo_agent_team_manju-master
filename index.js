@@ -192,6 +192,12 @@ module.exports = {
       reveal: bind('reveal'),
       readVoice: bind('readVoice'),
       downloadZip: bind('downloadZip'),
+      listSlots: bind('listSlots'),
+      bindSlot: bind('bindSlot'),
+      cloneSlot: bind('cloneSlot'),
+      replaceSlot: bind('replaceSlot'),
+      addSlot: bind('addSlot'),
+      generateVoice: bind('generateVoice'),
     });
   },
 

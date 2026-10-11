@@ -12,7 +12,8 @@ _SHOT_BLOCK = re.compile(
     re.M | re.S,
 )
 _SCENE_HEAD = re.compile(r"^## ([A-Za-z0-9_-]+) · (.+)$", re.M)
-_VOICE_NAME = re.compile(r"^(\d{2})_(owner|advisor)\.mp3$")
+_VOICE_NAME = re.compile(r"^(\d{2})_([A-Za-z0-9][A-Za-z0-9_-]*)\.mp3$")
+_FILE_SPEAKER = {"owner": "企业主", "advisor": "招商顾问", "narration": "旁白"}
 
 
 def validate_theme(theme: str) -> str:
@@ -139,10 +140,28 @@ def parse_title(path: Path) -> str:
     return ""
 
 
-def list_voice(root: Path, theme: str) -> list[dict[str, str]]:
+def _speakers_by_id(root: Path, theme: str, code_root: Path | None) -> dict[str, str]:
+    try:
+        _episode, voice_path = _fact_paths(root, theme, code_root=code_root)
+    except ValueError:
+        return {}
+    if not voice_path.is_file():
+        return {}
+    import json
+
+    data = json.loads(voice_path.read_text(encoding="utf-8"))
+    found: dict[str, str] = {}
+    for line in data.get("lines") or []:
+        if isinstance(line, dict) and line.get("id"):
+            found[str(line["id"])] = str(line.get("speaker") or "")
+    return found
+
+
+def list_voice(root: Path, theme: str, *, code_root: Path | None = None) -> list[dict[str, str]]:
     folder = voice_dir(root, theme)
     if not folder.is_dir():
         return []
+    speakers = _speakers_by_id(root, theme, code_root)
     rows: list[dict[str, str]] = []
     for mp3 in sorted(folder.glob("*.mp3")):
         m = _VOICE_NAME.match(mp3.name)
@@ -150,7 +169,7 @@ def list_voice(root: Path, theme: str) -> list[dict[str, str]]:
             continue
         txt = mp3.with_suffix(".txt")
         text = txt.read_text(encoding="utf-8").strip() if txt.is_file() else ""
-        speaker = "企业主" if m.group(2) == "owner" else "招商顾问"
+        speaker = speakers.get(m.group(1)) or _FILE_SPEAKER.get(m.group(2), m.group(2))
         rows.append(
             {
                 "id": m.group(1),
@@ -202,7 +221,7 @@ def load_bench(root: Path, theme: str, *, code_root: Path | None = None) -> dict
         "characters": characters,
         "scenes": parse_scenes(out / "02-场景.md"),
         "shots": parse_shots(out / "03-分镜.md"),
-        "voice": list_voice(root, theme),
+        "voice": list_voice(root, theme, code_root=code_root),
     }
 
 

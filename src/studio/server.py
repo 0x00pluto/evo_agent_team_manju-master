@@ -8,6 +8,8 @@ import mimetypes
 import re
 import subprocess
 import sys
+import threading
+import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
@@ -17,8 +19,22 @@ from urllib.parse import unquote, urlparse
 
 from src.feishu_doc import fetch_document
 from src.studio.bench import list_recent, load_bench, validate_theme, voice_dir, voice_mp3
-from src.studio.compile_episode import split_sections
+from src.studio.compile_episode import prepare_script
 from src.studio.jobs import JobManager, resynth_line
+from src.studio.audio_sample import SampleError, prepare_sample
+from src.studio.voice_slots import (
+    add_slot,
+    apply_cast_defaults,
+    bind_speaker,
+    cast_view,
+    ensure_key,
+    load_slots,
+    minimax_ready,
+    perform_clone,
+    public_slot,
+    recover_slots,
+    sample_file,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 _FEISHU_RE = re.compile(
@@ -27,6 +43,7 @@ _FEISHU_RE = re.compile(
 _CHUNK = 1024 * 1024
 _MAX_JSON = 1_500_000
 _MAX_UPLOAD = 2 * 1024 * 1024
+_MAX_MEDIA = 20 * 1024 * 1024
 
 
 def feishu_url_in(text: str) -> str:
@@ -46,9 +63,17 @@ def explicit_feishu_url(payload: dict[str, Any]) -> str:
     return url
 
 
-def section_choices(script: str, **kwargs: Any) -> list[dict[str, Any]]:
+def preview_payload(script: str, **kwargs: Any) -> dict[str, Any]:
+    """按 split_with 切段。未指定时用程序。开始任务应提交这里的 script_text。"""
+    raw_mode = kwargs.get("split_with")
+    split_with = raw_mode if raw_mode in ("program", "model") else "program"
+    canonical, sections = prepare_script(
+        script,
+        split_with=split_with,
+        chat_fn=kwargs.get("chat_fn"),
+    )
     rows = []
-    for section in split_sections(script, **kwargs):
+    for section in sections:
         rows.append(
             {
                 "index": section["index"],
@@ -59,8 +84,12 @@ def section_choices(script: str, **kwargs: Any) -> list[dict[str, Any]]:
             }
         )
     if not rows:
-        raise ValueError("脚本里没有【】段落")
-    return rows
+        raise ValueError("没能把脚本整理成分段")
+    return {"sections": rows, "script_text": canonical}
+
+
+def section_choices(script: str, **kwargs: Any) -> list[dict[str, Any]]:
+    return preview_payload(script, **kwargs)["sections"]
 
 
 def fetch_feishu(url: str) -> str:
@@ -152,9 +181,78 @@ def download_zip(root: Path, theme: str) -> dict[str, str]:
     }
 
 
+def launch_work(manager: JobManager, work: Any) -> None:
+    manager.acquire()
+
+    def run() -> None:
+        try:
+            work()
+        except Exception:
+            pass
+        finally:
+            manager.release()
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+def write_media_bytes(root: Path, filename: str, data: bytes) -> Path:
+    if not data or len(data) > _MAX_MEDIA:
+        raise SampleError("文件大于 20MB，不能克隆")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in (".mp4", ".m4v", ".mov", ".mkv", ".mp3", ".m4a", ".wav"):
+        raise SampleError("只接收 MP4，或 mp3 / m4a / wav 音轨")
+    dest_dir = Path(root) / "temp" / "voice-clone" / uuid.uuid4().hex[:12]
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / (Path(filename).name or "sample.mp4")
+    dest.write_bytes(data)
+    return dest
+
+
+def preflight_slot(data_root: Path, code_root: Path, slot_id: str, upload: Path | None) -> dict[str, Any]:
+    ensure_key()
+    slots = load_slots(data_root, code_root)
+    found = next((slot for slot in slots if slot.get("id") == slot_id), None)
+    if found is None:
+        raise ValueError("没有这个声音")
+    src = upload if upload is not None else sample_file(found, data_root, code_root)
+    prepare_sample(src, Path(data_root) / "temp" / "voice-clone" / uuid.uuid4().hex[:12])
+    shown = public_slot(found)
+    shown["status"] = "cloning"
+    shown["status_label"] = "生成中"
+    shown["selectable"] = False
+    return shown
+
+
+def queue_clone(manager: JobManager, data_root: Path, code_root: Path, slot_id: str, upload: Path | None = None) -> dict[str, Any]:
+    shown = preflight_slot(data_root, code_root, slot_id, upload)
+    launch_work(manager, lambda: perform_clone(data_root, code_root, slot_id, upload_path=upload))
+    return {"slot": shown}
+
+
+def queue_add(manager: JobManager, data_root: Path, code_root: Path, name: str, upload: Path) -> dict[str, Any]:
+    ensure_key()
+    slot = add_slot(data_root, code_root, name, upload)
+    slot_id = str(slot["id"])
+    launch_work(manager, lambda: perform_clone(data_root, code_root, slot_id))
+    shown = public_slot(slot)
+    shown["status"] = "cloning"
+    shown["status_label"] = "生成中"
+    shown["selectable"] = False
+    return {"slot": shown}
+
+
+def _with_cast(root: Path, code_root: Path, theme: str, bench: dict[str, Any]) -> dict[str, Any]:
+    slots = load_slots(root, code_root)
+    payload = dict(bench)
+    payload["cast"] = cast_view(apply_cast_defaults(root, theme, slots), slots)
+    payload["minimax_ready"] = minimax_ready()
+    return payload
+
+
 class StudioHandler(BaseHTTPRequestHandler):
     manager: JobManager
     root: Path
+    code_root: Path
 
     def log_message(self, fmt: str, *args: Any) -> None:  # noqa: A003
         __import__("sys").stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -193,6 +291,10 @@ class StudioHandler(BaseHTTPRequestHandler):
         if path == "/api/recent":
             self._json(200, {"recent": list_recent(self.root)})
             return
+        if path == "/api/voice-slots":
+            slots = load_slots(self.root, self.code_root)
+            self._json(200, {"slots": [public_slot(slot) for slot in slots], "minimax_ready": minimax_ready()})
+            return
         if path.startswith("/api/jobs/") and path.count("/") == 3:
             job = self.manager.get(path.rsplit("/", 1)[-1])
             if job is None:
@@ -203,7 +305,9 @@ class StudioHandler(BaseHTTPRequestHandler):
         bench = re.fullmatch(r"/api/bench/([^/]+)", path)
         if bench:
             try:
-                self._json(200, load_bench(self.root, bench.group(1)))
+                theme = bench.group(1)
+                payload = load_bench(self.root, theme, code_root=self.code_root)
+                self._json(200, _with_cast(self.root, self.code_root, theme, payload))
             except FileNotFoundError as exc:
                 self._json(404, {"error": str(exc)})
             except ValueError as exc:
@@ -236,7 +340,24 @@ class StudioHandler(BaseHTTPRequestHandler):
             if path == "/api/voiceover/resynth":
                 self._resynth()
                 return
+            if path == "/api/voiceover/generate":
+                self._generate_voice()
+                return
+            if path == "/api/voice-slots/bind":
+                self._bind_slot()
+                return
+            if path == "/api/voice-slots/clone":
+                self._clone_slot()
+                return
+            if path == "/api/voice-slots/replace":
+                self._replace_slot()
+                return
+            if path == "/api/voice-slots/add":
+                self._add_slot()
+                return
             self._json(404, {"error": "not found"})
+        except SampleError as exc:
+            self._json(400, {"error": str(exc)})
         except FileNotFoundError as exc:
             self._json(404, {"error": str(exc)})
         except RuntimeError as exc:
@@ -272,16 +393,72 @@ class StudioHandler(BaseHTTPRequestHandler):
     def _preview(self) -> None:
         payload = self._read_json()
         script = load_script(self.root, payload)
-        self._json(200, {"sections": section_choices(script)})
+        self._json(200, preview_payload(script, split_with=payload.get("split_with")))
 
     def _create_job(self) -> None:
         payload = self._read_json()
         script = load_script(self.root, payload)
         sections = payload.get("sections")
         if not isinstance(sections, list):
-            raise ValueError("请为每一段选择分镜或只配音")
+            raise ValueError("请为每一段选择「生成分镜」或「只配音」")
         job = self.manager.create(script, sections)
         self._json(201, job.to_dict())
+
+    def _read_media(self) -> tuple[str, Path]:
+        length = int(self.headers.get("Content-Length") or "0")
+        if length <= 0 or length > _MAX_MEDIA:
+            raise SampleError("文件大于 20MB，不能克隆")
+        raw_name = unquote(self.headers.get("X-Filename") or "sample.mp4")
+        suffix = Path(raw_name).suffix.lower()
+        if suffix not in (".mp4", ".m4v", ".mov", ".mkv", ".mp3", ".m4a", ".wav"):
+            raise SampleError("只接收 MP4，或 mp3 / m4a / wav 音轨")
+        dest_dir = self.root / "temp" / "voice-clone" / uuid.uuid4().hex[:12]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / (Path(raw_name).name or "sample.mp4")
+        remaining = length
+        with dest.open("wb") as out:
+            while remaining > 0:
+                chunk = self.rfile.read(min(_CHUNK, remaining))
+                if not chunk:
+                    break
+                out.write(chunk)
+                remaining -= len(chunk)
+        return raw_name, dest
+
+    def _generate_voice(self) -> None:
+        payload = self._read_json()
+        job = self.manager.start_voice(str(payload.get("theme") or ""))
+        self._json(201, job.to_dict())
+
+    def _bind_slot(self) -> None:
+        payload = self._read_json()
+        theme = str(payload.get("theme") or "")
+        rows = bind_speaker(
+            self.root,
+            theme,
+            str(payload.get("speaker") or ""),
+            str(payload.get("slot_id") or ""),
+            load_slots(self.root, self.code_root),
+        )
+        view = cast_view(rows, load_slots(self.root, self.code_root))
+        self._json(200, view)
+
+    def _clone_slot(self) -> None:
+        payload = self._read_json()
+        slot_id = str(payload.get("id") or "").strip()
+        self._json(202, queue_clone(self.manager, self.root, self.code_root, slot_id))
+
+    def _replace_slot(self) -> None:
+        slot_id = unquote(self.headers.get("X-Slot-Id") or "").strip()
+        if not slot_id:
+            raise ValueError("没有这个声音")
+        _name, dest = self._read_media()
+        self._json(202, queue_clone(self.manager, self.root, self.code_root, slot_id, dest))
+
+    def _add_slot(self) -> None:
+        name = unquote(self.headers.get("X-Slot-Name") or "").strip()
+        _filename, dest = self._read_media()
+        self._json(202, queue_add(self.manager, self.root, self.code_root, name, dest))
 
     def _resynth(self) -> None:
         payload = self._read_json()
@@ -374,12 +551,13 @@ class StudioHandler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk)
 
 
-def make_handler(manager: JobManager, root: Path) -> type[BaseHTTPRequestHandler]:
+def make_handler(manager: JobManager, root: Path, code_root: Path | None = None) -> type[BaseHTTPRequestHandler]:
     class Bound(StudioHandler):
         pass
 
     Bound.manager = manager
     Bound.root = root
+    Bound.code_root = Path(code_root).resolve() if code_root is not None else root
     return Bound
 
 
@@ -387,6 +565,7 @@ def serve(root: Path, *, host: str = "127.0.0.1", port: int = 8767) -> Threading
     if host not in ("127.0.0.1", "localhost", "::1"):
         raise ValueError("拒绝非本机绑定")
     root = Path(root).resolve()
+    recover_slots(root, root)
     manager = JobManager(root)
     httpd = ThreadingHTTPServer((host, port), make_handler(manager, root))
     return httpd

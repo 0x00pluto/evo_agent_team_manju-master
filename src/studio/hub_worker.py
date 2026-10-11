@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -14,11 +15,23 @@ from src.env_load import apply_plugin_settings, data_root, load_dotenv, plugin_r
 from src.studio.bench import list_recent, load_bench
 from src.studio.jobs import JobManager, resynth_line
 from src.studio.server import (
+    _with_cast,
     download_zip,
     load_script,
+    preview_payload,
+    queue_add,
+    queue_clone,
     read_voice,
     reveal_voice,
-    section_choices,
+    write_media_bytes,
+)
+from src.studio.voice_slots import (
+    bind_speaker,
+    cast_view,
+    load_slots,
+    minimax_ready,
+    public_slot,
+    recover_slots,
 )
 
 class StudioSession:
@@ -37,12 +50,12 @@ class StudioSession:
         payload = params if isinstance(params, dict) else {}
         if method == "preview":
             script = load_script(self.data_root, payload)
-            return {"sections": section_choices(script)}
+            return preview_payload(script, split_with=payload.get("split_with"))
         if method == "createJob":
             script = load_script(self.data_root, payload)
             sections = payload.get("sections")
             if not isinstance(sections, list):
-                raise ValueError("请为每一段选择分镜或只配音")
+                raise ValueError("请为每一段选择「生成分镜」或「只配音」")
             return self.manager.create(script, sections).to_dict()
         if method == "getJob":
             job = self.manager.get(str(payload.get("id") or ""))
@@ -52,7 +65,52 @@ class StudioSession:
         if method == "recent":
             return {"recent": list_recent(self.data_root)}
         if method == "bench":
-            return load_bench(self.data_root, str(payload.get("theme") or ""), code_root=self.root)
+            theme = str(payload.get("theme") or "")
+            bench = load_bench(self.data_root, theme, code_root=self.root)
+            return _with_cast(self.data_root, self.root, theme, bench)
+        if method == "listSlots":
+            slots = load_slots(self.data_root, self.root)
+            return {"slots": [public_slot(slot) for slot in slots], "minimax_ready": minimax_ready()}
+        if method == "bindSlot":
+            theme = str(payload.get("theme") or "")
+            rows = bind_speaker(
+                self.data_root,
+                theme,
+                str(payload.get("speaker") or ""),
+                str(payload.get("slot_id") or ""),
+                load_slots(self.data_root, self.root),
+            )
+            return cast_view(rows, load_slots(self.data_root, self.root))
+        if method == "cloneSlot":
+            return queue_clone(self.manager, self.data_root, self.root, str(payload.get("id") or ""))
+        if method == "replaceSlot":
+            dest = write_media_bytes(
+                self.data_root,
+                str(payload.get("filename") or "sample.mp4"),
+                base64.b64decode(str(payload.get("base64") or "")),
+            )
+            return queue_clone(
+                self.manager,
+                self.data_root,
+                self.root,
+                str(payload.get("id") or ""),
+                dest,
+            )
+        if method == "addSlot":
+            dest = write_media_bytes(
+                self.data_root,
+                str(payload.get("filename") or "sample.mp4"),
+                base64.b64decode(str(payload.get("base64") or "")),
+            )
+            return queue_add(
+                self.manager,
+                self.data_root,
+                self.root,
+                str(payload.get("name") or ""),
+                dest,
+            )
+        if method == "generateVoice":
+            return self.manager.start_voice(str(payload.get("theme") or "")).to_dict()
         if method == "resynth":
             return resynth_line(
                 self.data_root,
@@ -106,6 +164,7 @@ def serve_stdio(
 
 def main() -> int:
     load_dotenv()
+    recover_slots(data_root(), plugin_root())
     try:
         sys.stdout.reconfigure(line_buffering=True)
     except (AttributeError, OSError):

@@ -19,6 +19,7 @@ style_id: cinematic-photoreal-short-drama
 | character_closeup | `character_closeup.md` | 面部特写骨架 |
 | scene | `scene.md` | 场景贴图骨架 |
 | shot_libtv | `shot_libtv.md` | LibTV 九要素分镜骨架 |
+| script_normalize | `script_normalize.md` | 读取脚本时把原稿收成标准分段 |
 
 ## Placeholders
 

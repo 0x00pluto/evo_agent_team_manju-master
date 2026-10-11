@@ -16,20 +16,14 @@ _SHOT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 _ID_TOKEN_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _HAN_RE = re.compile(r"[\u4e00-\u9fff]")
 
-SPEAKER_ALIAS = {
-    "企业老板": "企业主",
-    "企业主": "企业主",
-    "老板": "企业主",
-    "招商运营": "招商顾问",
-    "招商顾问": "招商顾问",
-    "招商主管": "招商顾问",
-    "招商人员": "招商顾问",
-}
-VOICE_SLUG = {
-    "企业主": "ai-enterprise-owner",
-    "招商顾问": "female-zhao-shang-lead",
-}
+NARRATOR = "旁白"
 _MAX_HAN_PER_SHOT = 72
+
+
+def display_speaker(raw: str) -> str:
+    """对白保留原名。没有称呼的口播记为旁白。"""
+    name = str(raw or "").strip()
+    return name or NARRATOR
 
 _SYSTEM = """你是漫剧美术。只输出一个 JSON 对象，不要解释，不要 Markdown。
 
@@ -57,14 +51,15 @@ _NOTE_HEADING_RE = re.compile(r"^#{1,6}\s+\S")
 _DIALOGUE_RE = re.compile(r"^([^：:\n（]{1,20})(?:（[^）]{0,12}）)?[：:]\s*(.+)$")
 _BEAT_RE = re.compile(r"秒")
 
-_SPLIT_SYSTEM = """你只把脚本切成连续段落。只输出一个 JSON 对象，不要解释，不要 Markdown。
 
-不要决定哪段出镜，不要改写台词。文首的角色说明、选题、场景说明，以及文末的口播要点表，都不要算成一段。
+def _is_image_line(line: str) -> bool:
+    """配图 Markdown 的地址里有冒号，不能当成「说话人：台词」。"""
+    return line.startswith("![")
 
-start 必须是脚本原文里能原样找到的短句，保留原有的星号和标点，不要改写。按脚本顺序。
 
-{"sections":[{"title":"0-18秒钩子","start":"【0-18秒·钩子】"}]}
-"""
+def strip_image_lines(script: str) -> str:
+    kept = [raw for raw in script.splitlines() if not _is_image_line(raw.strip())]
+    return "\n".join(kept)
 
 
 def extract_json(text: str) -> dict[str, Any]:
@@ -113,7 +108,7 @@ def script_utterances(script: str) -> list[str]:
         line = raw.strip()
         if not line or (line.startswith("【") and line.endswith("】")):
             continue
-        if line.startswith("#") or line.startswith("- ") or line.startswith("![]"):
+        if line.startswith("#") or line.startswith("- ") or _is_image_line(line):
             continue
         uttered = _utterance(line)
         if uttered:
@@ -192,7 +187,7 @@ def validate_bundle(data: dict[str, Any], script: str) -> dict[str, Any]:
                 raise ValueError(f"{sid} 的台词被改写了: {text}")
             han += _han_count(text)
             item["text"] = text
-            item["speaker"] = str(item.get("speaker") or "").strip() or "企业主"
+            item["speaker"] = display_speaker(str(item.get("speaker") or ""))
         if han > _MAX_HAN_PER_SHOT:
             raise ValueError(f"{sid} 超过 12 秒上限（{han} 字），请拆镜")
         for key in (
@@ -209,15 +204,13 @@ def validate_bundle(data: dict[str, Any], script: str) -> dict[str, Any]:
             sh.setdefault(key, "")
 
     lines = voiceover.get("lines") or []
-    if not isinstance(lines, list) or not lines:
-        raise ValueError("voiceover.lines 不能为空")
+    if not isinstance(lines, list):
+        raise ValueError("voiceover.lines 必须是数组")
     positions: list[int] = []
     for line in lines:
         if not isinstance(line, dict):
             raise ValueError("配音行必须是对象")
-        speaker = SPEAKER_ALIAS.get(str(line.get("speaker") or "").strip())
-        if not speaker:
-            raise ValueError(f"无法识别说话人: {line.get('speaker')!r}")
+        speaker = display_speaker(str(line.get("speaker") or ""))
         text = str(line.get("text") or "").strip()
         text = re.sub(r"^（[^）]{0,12}）", "", text).strip()
         if not text:
@@ -227,7 +220,7 @@ def validate_bundle(data: dict[str, Any], script: str) -> dict[str, Any]:
             raise ValueError(f"配音文本对不上脚本: {text[:40]}")
         positions.append(pos)
         line["speaker"] = speaker
-        line["voice_slug"] = VOICE_SLUG[speaker]
+        line.pop("voice_slug", None)
         line["text"] = text
         segment = str(line.get("segment") or "vo")
         if not re.fullmatch(r"[a-z0-9-]{1,24}", segment):
@@ -249,10 +242,7 @@ def validate_bundle(data: dict[str, Any], script: str) -> dict[str, Any]:
 
     voiceover["title"] = str(voiceover.get("title") or f"{title}（整集配音）")
     voiceover["episode"] = slug
-    voiceover["voice_map"] = {
-        "招商顾问": "female-zhao-shang-lead",
-        "企业主": "ai-enterprise-owner",
-    }
+    voiceover.pop("voice_map", None)
     voiceover["lines"] = lines
 
     from src.studio.bench import summary_from_facts
@@ -269,10 +259,10 @@ def _section_items(body_lines: list[str]) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
     for raw in body_lines:
         line = raw.strip()
-        if not line or line.startswith("#") or line.startswith("![]"):
-            continue
         if line.startswith("- "):
             line = line[2:].strip()
+        if not line or line.startswith("#") or _is_image_line(line):
+            continue
         matched = _DIALOGUE_RE.match(line)
         if matched:
             items.append(
@@ -408,6 +398,8 @@ def _dialogue_count(script: str) -> int:
         line = raw.strip()
         if line.startswith("- "):
             line = line[2:].strip()
+        if _is_image_line(line):
+            continue
         if _DIALOGUE_RE.match(line):
             count += 1
     return count
@@ -419,31 +411,37 @@ def looks_like_many_beats(script: str) -> bool:
     return len(_BEAT_RE.findall(script)) >= 2 or _dialogue_count(script) >= 2
 
 
-def _ask_splits(script: str, chat_fn: ChatFn) -> list[Any]:
-    raw = chat_fn(
-        [
-            {"role": "system", "content": _SPLIT_SYSTEM},
-            {"role": "user", "content": script},
-        ]
-    )
-    data = extract_json(raw)
-    rows = data.get("sections")
-    if not isinstance(rows, list):
-        return []
-    return rows
+_PROGRAM_FAIL = "脚本里没有【】段落，可以改用大模型整理"
 
 
-def split_sections(script: str, *, chat_fn: ChatFn | None = None) -> list[dict[str, Any]]:
-    """本地先切。少于两段且正文像有多段时，再让模型标起点。"""
-    sections = parse_sections(script)
-    if len(sections) >= 2 or not looks_like_many_beats(script):
-        return sections
-    try:
-        proposed = _ask_splits(script, chat if chat_fn is None else chat_fn)
-        rebuilt = sections_from_anchors(script, proposed)
-    except (ValueError, json.JSONDecodeError, RuntimeError, OSError):
-        return sections
-    return rebuilt or sections
+def prepare_script(
+    script: str,
+    *,
+    split_with: str = "program",
+    chat_fn: ChatFn | None = None,
+) -> tuple[str, list[dict[str, Any]]]:
+    """程序切段为默认。只有明确要求时才调用大模型。"""
+    if split_with == "model":
+        from src.script_preprocess import preprocess_script
+
+        canonical = preprocess_script(script, chat_fn=chat_fn)
+        return canonical, parse_sections(canonical)
+    cleaned = strip_image_lines(script)
+    sections = parse_sections(cleaned)
+    if not sections:
+        raise ValueError(_PROGRAM_FAIL)
+    return cleaned, sections
+
+
+def split_sections(
+    script: str,
+    *,
+    split_with: str = "program",
+    chat_fn: ChatFn | None = None,
+) -> list[dict[str, Any]]:
+    """按所选入口切段。未指定时用程序。"""
+    _, sections = prepare_script(script, split_with=split_with, chat_fn=chat_fn)
+    return sections
 
 
 def script_preamble(script: str) -> str:
@@ -491,28 +489,19 @@ def resolve_modes(script: str, selections: list[dict[str, Any]]) -> list[dict[st
             raise ValueError("段落选择格式不对") from exc
         mode = str(item.get("mode") or "")
         if mode not in ("shot", "voice"):
-            raise ValueError(f"段落 {index + 1} 请选择分镜或只配音")
+            raise ValueError(f"段落 {index + 1} 请选择「生成分镜」或「只配音」")
         chosen[index] = mode
     resolved: list[dict[str, Any]] = []
     for section in sections:
         mode = chosen.get(section["index"])
         if mode not in ("shot", "voice"):
-            raise ValueError(f"请为「{section['title']}」选择分镜或只配音")
+            raise ValueError(f"请为「{section['title']}」选择「生成分镜」或「只配音」")
         resolved.append({**section, "mode": mode})
     return resolved
 
 
 def _reading(text: str) -> str:
     return text.replace("12000", '"一万两千"')
-
-
-def _mapped_speaker(raw: str) -> str:
-    if not raw:
-        return "招商顾问"
-    speaker = SPEAKER_ALIAS.get(raw)
-    if not speaker:
-        raise ValueError(f"无法识别说话人: {raw}")
-    return speaker
 
 
 def _sentences(text: str) -> list[str]:
@@ -569,8 +558,8 @@ def build_locked(script: str, selections: list[dict[str, Any]]) -> dict[str, Any
                 )
             for line in filmed:
                 shot_texts.append(line["text"])
-                speaker_name = line["speaker"] or "招商顾问"
-                if speaker_name not in names:
+                speaker_name = str(line["speaker"] or "").strip()
+                if speaker_name and speaker_name not in names:
                     names.append(speaker_name)
 
         for line in items:
@@ -584,7 +573,7 @@ def build_locked(script: str, selections: list[dict[str, Any]]) -> dict[str, Any
                 if on_screen:
                     voice_lines.append(
                         {
-                            "speaker": _mapped_speaker(line["speaker"]),
+                            "speaker": display_speaker(line["speaker"]),
                             "text": piece,
                             "segment": "shot",
                         }
@@ -593,13 +582,13 @@ def build_locked(script: str, selections: list[dict[str, Any]]) -> dict[str, Any
                     voice_only_texts.append(line["text"] if piece == line["text"] else piece)
                     voice_lines.append(
                         {
-                            "speaker": _mapped_speaker(line["speaker"]),
+                            "speaker": display_speaker(line["speaker"]),
                             "text": _reading(piece),
                             "segment": "vo",
                         }
                     )
 
-    if not voice_lines:
+    if not voice_lines and not shots:
         raise ValueError("脚本里没有可配音的句子")
 
     shots: list[dict[str, Any]] = []
@@ -612,11 +601,11 @@ def build_locked(script: str, selections: list[dict[str, Any]]) -> dict[str, Any
                 "duration_hint": f"约{seconds}秒（硬上限12秒）",
                 "shot_type": "",
                 "camera": "",
-                "protagonist": group["lines"][0]["speaker"] or "招商顾问",
+                "protagonist": display_speaker(group["lines"][0]["speaker"]),
                 "action": "",
                 "dialogue": [
                     {
-                        "speaker": line["speaker"] or "招商顾问",
+                        "speaker": display_speaker(line["speaker"]),
                         "text": line["text"],
                     }
                     for line in group["lines"]
@@ -734,7 +723,7 @@ def _ref_images(spec: dict[str, Any], scenes: list[dict[str, Any]]) -> str:
     speakers: list[str] = []
     for item in spec.get("dialogue") or []:
         name = str(item.get("speaker") or "").strip()
-        if name and name not in speakers:
+        if name and name != NARRATOR and name not in speakers:
             speakers.append(name)
     parts = [f"图{index}{name}三视图" for index, name in enumerate(speakers, start=1)]
     scene_id = str(spec.get("scene_id") or "")

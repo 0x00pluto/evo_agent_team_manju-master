@@ -31,6 +31,7 @@ from src.studio.compile_episode import (  # noqa: E402
     split_sections,
     validate_bundle,
 )
+from src.script_preprocess import preprocess_script  # noqa: E402
 from src.generate_episode import render_shot  # noqa: E402
 from src.env_load import apply_plugin_settings, data_root, load_dotenv, plugin_root  # noqa: E402
 from src.episode_voiceover import load_voice  # noqa: E402
@@ -41,6 +42,7 @@ from src.studio.server import (  # noqa: E402
     explicit_feishu_url,
     load_script,
     read_voice,
+    preview_payload,
     section_choices,
     serve,
 )
@@ -118,6 +120,82 @@ PLAIN_BEATS = """0-18秒钩子
 """
 
 
+def _preview_script_chat(_messages: list) -> str:
+    return json.dumps(
+        {
+            "preamble": "",
+            "sections": [
+                {
+                    "title": "0-20秒·钩子",
+                    "lines": [
+                        {
+                            "speaker": "企业老板",
+                            "text": "入驻产业园以后，除了厂房，园区还能提供什么？",
+                        },
+                        {"speaker": "招商运营", "text": "园区会陪着企业一路走。"},
+                    ],
+                },
+                {
+                    "title": "20-40秒·旁白",
+                    "lines": [
+                        {
+                            "speaker": "",
+                            "text": "东湖高新集团深耕园区运营三十多年，服务过12000多家科技型企业，企业缺什么，我们帮着补什么。",
+                        }
+                    ],
+                },
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+# 子进程里换掉预处理入口，避免预览去打外网。
+_WORKER_PREVIEW = """
+import json
+import src.script_preprocess as pre
+from src.env_load import data_root, plugin_root
+from src.studio.hub_worker import StudioSession, serve_stdio
+
+def fake(_messages):
+    return json.dumps(
+        {
+            "preamble": "",
+            "sections": [
+                {
+                    "title": "0-20秒·钩子",
+                    "lines": [
+                        {
+                            "speaker": "企业老板",
+                            "text": "入驻产业园以后，除了厂房，园区还能提供什么？",
+                        },
+                        {"speaker": "招商运营", "text": "园区会陪着企业一路走。"},
+                    ],
+                },
+                {
+                    "title": "20-40秒·旁白",
+                    "lines": [
+                        {
+                            "speaker": "",
+                            "text": "东湖高新集团深耕园区运营三十多年，服务过12000多家科技型企业，企业缺什么，我们帮着补什么。",
+                        }
+                    ],
+                },
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+real = pre.preprocess_script
+
+def wrapped(script, chat_fn=None):
+    return real(script, chat_fn=fake)
+
+pre.preprocess_script = wrapped
+serve_stdio(StudioSession(plugin_root(), data_root=data_root()))
+"""
+
+
 def _bundle() -> dict:
     return {
         "slug": "Demo-Park",
@@ -192,9 +270,9 @@ class CompileTests(unittest.TestCase):
         self.assertEqual(out["episode"]["style"], "cinematic-photoreal-short-drama")
         ids = [line["id"] for line in out["voiceover"]["lines"]]
         self.assertEqual(ids, ["01", "02", "03"])
-        self.assertEqual(out["voiceover"]["lines"][0]["speaker"], "企业主")
-        self.assertEqual(out["voiceover"]["lines"][0]["voice_slug"], "ai-enterprise-owner")
-        self.assertEqual(out["voiceover"]["lines"][1]["speaker"], "招商顾问")
+        self.assertEqual(out["voiceover"]["lines"][0]["speaker"], "企业老板")
+        self.assertNotIn("voice_slug", out["voiceover"]["lines"][0])
+        self.assertEqual(out["voiceover"]["lines"][1]["speaker"], "招商运营")
         self.assertEqual(len(out["summary"]["shots"]), 1)
         self.assertEqual(out["summary"]["voice_only"][0]["id"], "03")
         self.assertIn('"一万两千"', out["voiceover"]["lines"][2]["text"])
@@ -360,22 +438,116 @@ class SectionTests(unittest.TestCase):
             [{"index": row["index"], "mode": row["mode"]} for row in sections],
         )
         speakers = [line["speaker"] for line in locked["voice_lines"]]
-        self.assertIn("招商顾问", speakers)
-        self.assertNotIn("招商人员", speakers)
+        self.assertIn("企业主", speakers)
+        self.assertIn("招商人员", speakers)
+        self.assertIn("旁白", speakers)
+        self.assertNotIn("招商顾问", speakers)
 
-    def test_model_anchors_split_when_brackets_are_missing(self) -> None:
-        def chat(_messages: list) -> str:
+    def test_image_markdown_is_not_a_speaker(self) -> None:
+        script = FOUR + "\n![图片说明很长](https://feishu.cn/file/abc)\n"
+        seen = {"n": 0, "user": ""}
+
+        def chat(messages: list) -> str:
+            seen["n"] += 1
+            seen["user"] = messages[1]["content"]
             return json.dumps(
                 {
+                    "preamble": "企业老板戴眼镜，穿浅蓝衬衫。",
                     "sections": [
-                        {"title": "钩子", "start": "0-18秒钩子"},
-                        {"title": "价值", "start": "18-52秒价值"},
-                    ]
+                        {
+                            "title": "0-20秒·钩子引入",
+                            "lines": [
+                                {
+                                    "speaker": "企业老板",
+                                    "text": "入驻产业园以后，除了厂房，园区还能提供什么？",
+                                },
+                                {"speaker": "招商运营", "text": "园区会陪着企业一路走。"},
+                            ],
+                        },
+                        {
+                            "title": "20-47秒·价值展示",
+                            "lines": [
+                                {
+                                    "speaker": "",
+                                    "text": "东湖高新集团深耕园区运营三十多年，服务过12000多家科技型企业。",
+                                }
+                            ],
+                        },
+                        {
+                            "title": "47-57秒·格局升华",
+                            "lines": [
+                                {"speaker": "企业老板", "text": "原来看园区，不能只看厂房好不好。"},
+                                {
+                                    "speaker": "招商运营",
+                                    "text": "对。好的园区提供的不只是空间，是陪企业一路成长的资源。",
+                                },
+                            ],
+                        },
+                        {
+                            "title": "57-70秒·收尾",
+                            "lines": [
+                                {
+                                    "speaker": "",
+                                    "text": "想了解园区能为你的企业做什么？欢迎来实地聊聊。",
+                                }
+                            ],
+                        },
+                    ],
                 },
                 ensure_ascii=False,
             )
 
-        sections = split_sections(PLAIN_BEATS, chat_fn=chat)
+        canonical = preprocess_script(script, chat_fn=chat)
+        self.assertEqual(seen["n"], 1)
+        self.assertNotIn("![", seen["user"])
+        self.assertNotIn("![", canonical)
+        sections = parse_sections(canonical)
+        self.assertEqual(len(sections), 4)
+        self.assertEqual(sections[-1]["mode"], "voice")
+        texts = [item["text"] for row in sections for item in row["items"]]
+        self.assertFalse(any("图片说明" in text or "https" in text for text in texts))
+        locked = build_locked(
+            canonical,
+            [
+                {
+                    "index": row["index"],
+                    "mode": row["mode"],
+                    "title": row["title"],
+                    "start": row["start"],
+                }
+                for row in sections
+            ],
+        )
+        self.assertTrue(locked["voice_lines"])
+
+    def test_model_standardizes_when_brackets_are_missing(self) -> None:
+        def chat(_messages: list) -> str:
+            return json.dumps(
+                {
+                    "preamble": "",
+                    "sections": [
+                        {
+                            "title": "钩子",
+                            "lines": [
+                                {"speaker": "企业主", "text": "我这厂房是真不够用了。"},
+                                {"speaker": "招商人员", "text": "这确实是老厂房常见的问题。"},
+                            ],
+                        },
+                        {
+                            "title": "价值",
+                            "lines": [
+                                {
+                                    "speaker": "",
+                                    "text": "有！这些生产企业的痛点，园区一次性帮你搞定。",
+                                }
+                            ],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            )
+
+        sections = split_sections(PLAIN_BEATS, split_with="model", chat_fn=chat)
         self.assertEqual([row["title"] for row in sections], ["钩子", "价值"])
         self.assertEqual([row["mode"] for row in sections], ["shot", "voice"])
         self.assertTrue(
@@ -383,22 +555,72 @@ class SectionTests(unittest.TestCase):
         )
         self.assertTrue(any(item["text"].startswith("有！") for item in sections[1]["items"]))
 
-    def test_bad_anchors_keep_local_sections(self) -> None:
+    def test_rewritten_lines_are_rejected(self) -> None:
         def chat(_messages: list) -> str:
             return json.dumps(
                 {
                     "sections": [
-                        {"title": "钩子", "start": "这段不在脚本里"},
-                        {"title": "价值", "start": "这句也不在"},
+                        {
+                            "title": "钩子",
+                            "lines": [{"speaker": "企业主", "text": "这段不在脚本里"}],
+                        }
                     ]
                 },
                 ensure_ascii=False,
             )
 
-        script = "【0-18秒·钩子】\n企业主：我这厂房是真不够用了。\n\n18-52秒\n有！园区一次性帮你搞定。\n"
-        sections = split_sections(script, chat_fn=chat)
-        self.assertEqual(len(sections), 1)
-        self.assertEqual(sections[0]["title"], "0-18秒·钩子")
+        with self.assertRaises(ValueError) as ctx:
+            split_sections(PLAIN_BEATS, split_with="model", chat_fn=chat)
+        self.assertIn("没能把脚本整理成分段", str(ctx.exception))
+
+    def test_retries_once_when_the_first_pass_rewrites(self) -> None:
+        calls = {"n": 0}
+
+        def chat(_messages: list) -> str:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return json.dumps(
+                    {
+                        "sections": [
+                            {
+                                "title": "钩子",
+                                "lines": [{"speaker": "企业主", "text": "改写了"}],
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
+            return json.dumps(
+                {
+                    "preamble": "两个虚拟人。",
+                    "sections": [
+                        {
+                            "title": "钩子",
+                            "lines": [
+                                {"speaker": "企业主（语气烦躁）", "text": "我这厂房是真不够用了。"},
+                                {"speaker": "招商人员", "text": "这确实是老厂房常见的问题。"},
+                            ],
+                        },
+                        {
+                            "title": "价值",
+                            "lines": [
+                                {
+                                    "speaker": "",
+                                    "text": "有！这些生产企业的痛点，园区一次性帮你搞定。",
+                                }
+                            ],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            )
+
+        payload = preview_payload(PLAIN_BEATS, split_with="model", chat_fn=chat)
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual([row["title"] for row in payload["sections"]], ["钩子", "价值"])
+        self.assertIn("【钩子】", payload["script_text"])
+        self.assertIn("企业主：我这厂房是真不够用了。", payload["script_text"])
+        self.assertNotIn("改写了", payload["script_text"])
 
     def test_url_is_not_scraped_from_prose(self) -> None:
         prose = "你看一下该如何搞 https://fcnegd976pzo.feishu.cn/wiki/NWvKwCfy8ihL2ZkVCWScSrOznum"
@@ -525,7 +747,10 @@ class ServerTests(unittest.TestCase):
             self.assertIn("漫剧操作台", page)
             self.assertIn("飞书文档", page)
             self.assertIn("上传脚本", page)
-            self.assertIn("分镜演绎", page)
+            self.assertIn("生成分镜", page)
+            self.assertIn("按标题分段", page)
+            self.assertIn("让模型分段", page)
+            self.assertIn("pulse-flow", page)
             self.assertNotIn("写明哪些要出镜", page)
             self.assertIn("打开所在文件夹", page)
             self.assertIn("重新配音", page)
@@ -557,7 +782,7 @@ class ServerTests(unittest.TestCase):
 class HubWorkerTests(unittest.TestCase):
     def test_script_text_previews_and_rejects_a_second_source(self) -> None:
         text = load_script(REPO, {"script_text": SCRIPT, "filename": "demo.md"})
-        rows = section_choices(text)
+        rows = section_choices(text, chat_fn=_preview_script_chat)
         self.assertGreaterEqual(len(rows), 2)
         self.assertEqual(rows[0]["mode"], "shot")
         with self.assertRaises(ValueError):
@@ -623,7 +848,7 @@ class HubWorkerTests(unittest.TestCase):
 
     def test_worker_answers_one_json_line(self) -> None:
         proc = subprocess.Popen(
-            [sys.executable, "-m", "src.studio.hub_worker"],
+            [sys.executable, "-c", _WORKER_PREVIEW],
             cwd=REPO,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -650,6 +875,7 @@ class HubWorkerTests(unittest.TestCase):
         self.assertEqual(message["id"], "1")
         self.assertTrue(message["ok"], message)
         self.assertGreaterEqual(len(message["result"]["sections"]), 2)
+        self.assertIn("【0-20秒·钩子】", message["result"]["script_text"])
 
     def test_plugin_root_reads_env_file_from_override(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

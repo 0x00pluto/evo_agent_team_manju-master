@@ -13,7 +13,7 @@
 ## 开始工作前
 
 1. 先读 [`docs/doc_index.md`](./docs/doc_index.md) 找到相关文档，再动手。
-2. 改动落进既有目录语义（见下表），不新增平级顶层目录。
+2. 改动落进既有目录语义（见下表），不新增平级顶层目录。`specs/prds/` 已在表内，产品规格放那里。
 3. 新增或改动文档后，登记进 `docs/doc_index.md`。
 4. **分夹**：新建可复跑的**业务**工作流 → 只写 [`docs/workflows/<slug>.md`](./docs/workflows/)（先复制 `_TEMPLATE.md`）。**禁止**在 [`docs/builtin-workflows/`](./docs/builtin-workflows/) 新建业务 slug。
 5. **任务后反思**：用户明确要求反思 / 任务后回顾 / 跑 post-task-reflect 时（建议在用户已验证本轮产物可用之后）→ 读并执行 [`docs/builtin-workflows/post-task-reflect.md`](./docs/builtin-workflows/post-task-reflect.md)。**不**在每次任务结束后自动跑。
@@ -25,6 +25,9 @@
 11. （可选总目录）若同级存在 [`../AgentWikiIndex/`](../AgentWikiIndex/)，改完「能力声明 / 兄弟关系」后执行：
    `python3 ../AgentWikiIndex/scripts/refresh_catalog.py`
    若不存在该目录，**跳过**，不要报错、不要去建。
+12. **团队命令**在 [`.cursor/commands/team/`](./.cursor/commands/team/)，母版在 Vibecoding 团队成员库，命令全文不抄进本文件。
+13. **改外观**前先读 [`docs/DESIGN.md`](./docs/DESIGN.md)。
+14. **踩坑**记录与检索用技能 `huyuan-ai-dev-faq-assistant`，目录 [`docs/faqs/`](./docs/faqs/)。技能正文不拷进仓库。
 
 ## 基线规则
 
@@ -45,6 +48,7 @@
 | `assets/` | 输入侧原料与样例 | 目录是；大媒体见 .gitignore |
 | `tests/` | 测试，结构镜像 `src/` 与 `scripts/` | 是 |
 | `docs/` | 文档，见 docs 约定 | 是 |
+| `specs/prds/` | PRD，索引见 `specs/prds/prd-wiki-index.md` | 是 |
 | `upgrades/` | 发版说明（GitHub Release 正文）；文件名与 tag 一致；首次发版再建 | 是 |
 | `cache/` | 可重建缓存，按内容哈希命名 | 否 |
 | `temp/` | 中间产物，可随时清空 | 否 |
@@ -71,6 +75,7 @@
 | `docs/builtin-workflows/<slug>.md` | 脚手架自带；改已有文件可以，禁止当业务目录用；每篇必须在「开始工作前」有触发，否则不要新增 |
 | `docs/best-practices/<slug>.md` | 可选：项目无关最佳实践（提取经验时再建）；须含 semver `version` |
 | `docs/faqs/<问题>.md` | 一次踩坑一篇，文件名即问题 |
+| `specs/prds/` | PRD 正文与索引；产品经理写入，工程验收官回写文末状态 |
 
 ## 环境
 
