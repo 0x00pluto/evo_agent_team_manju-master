@@ -26,8 +26,10 @@ from src.studio.server import (
     write_media_bytes,
 )
 from src.studio.voice_slots import (
+    account_voice_rows,
     bind_speaker,
     cast_view,
+    delete_account_voice,
     load_slots,
     minimax_ready,
     public_slot,
@@ -71,6 +73,10 @@ class StudioSession:
         if method == "listSlots":
             slots = load_slots(self.data_root, self.root)
             return {"slots": [public_slot(slot) for slot in slots], "minimax_ready": minimax_ready()}
+        if method == "listAccountVoices":
+            return {"voices": account_voice_rows(self.data_root, self.root)}
+        if method == "deleteAccountVoice":
+            return delete_account_voice(self.data_root, self.root, str(payload.get("voice_id") or ""))
         if method == "bindSlot":
             theme = str(payload.get("theme") or "")
             rows = bind_speaker(

@@ -11,6 +11,7 @@
 - `docs/workflows/libtv-studio.md`: 本机漫剧操作台；开发用 .venv；插件中心只推 tag，安装包按包含清单收窄，由 Dex Buddy 按 requirements.txt 准备 Python（飞书或上传脚本 → 默认按标题分段，下拉可选让模型分段 → 生成分镜/只配音 → 生成提示词 → 角色声音绑定声音 → 配音打开或打包）
 - `docs/workflows/episode-voiceover.md`: 成片第二步整集口播配音（全稿顺序 01…N → 本仓 MiniMax TTS；命令行用 voice_slug，操作台用本账号插槽）
 - `docs/workflows/minimax-voice-clone-and-tts.md`: 操作台在本仓克隆本账号音色；命令行配音不克隆
+- `docs/best-practices/minimax-voice-slots.md`: 同一 MiniMax 账号上克隆音色的编号与删除规范；新 voice_id 写成项目-是谁-时间，旧编号继续复用，删除只走接口
 - `docs/workflows/_TEMPLATE.md`: 业务 workflow 六段骨架；新建业务工作流时复制并改名，写完后删掉本行或改成真实条目
 - `docs/DESIGN.md`: 操作台视觉以 src/studio/static/index.html 的 data-theme="studio" 与 daisyUI 为准；改外观前先读，不另起组件库
 - `specs/prds/prd-wiki-index.md`: PRD 索引，不计入序号；产品经理追加一行，工程验收官回写文末状态

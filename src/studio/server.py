@@ -23,9 +23,11 @@ from src.studio.compile_episode import prepare_script
 from src.studio.jobs import JobManager, resynth_line
 from src.studio.audio_sample import SampleError, prepare_sample
 from src.studio.voice_slots import (
+    account_voice_rows,
     add_slot,
     apply_cast_defaults,
     bind_speaker,
+    delete_account_voice,
     cast_view,
     ensure_key,
     load_slots,
@@ -295,6 +297,9 @@ class StudioHandler(BaseHTTPRequestHandler):
             slots = load_slots(self.root, self.code_root)
             self._json(200, {"slots": [public_slot(slot) for slot in slots], "minimax_ready": minimax_ready()})
             return
+        if path == "/api/voice-slots/account":
+            self._json(200, {"voices": account_voice_rows(self.root, self.code_root)})
+            return
         if path.startswith("/api/jobs/") and path.count("/") == 3:
             job = self.manager.get(path.rsplit("/", 1)[-1])
             if job is None:
@@ -354,6 +359,9 @@ class StudioHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/voice-slots/add":
                 self._add_slot()
+                return
+            if path == "/api/voice-slots/account-delete":
+                self._delete_account_voice()
                 return
             self._json(404, {"error": "not found"})
         except SampleError as exc:
@@ -454,6 +462,10 @@ class StudioHandler(BaseHTTPRequestHandler):
             raise ValueError("没有这个声音")
         _name, dest = self._read_media()
         self._json(202, queue_clone(self.manager, self.root, self.code_root, slot_id, dest))
+
+    def _delete_account_voice(self) -> None:
+        payload = self._read_json()
+        self._json(200, delete_account_voice(self.root, self.code_root, str(payload.get("voice_id") or "")))
 
     def _add_slot(self) -> None:
         name = unquote(self.headers.get("X-Slot-Name") or "").strip()

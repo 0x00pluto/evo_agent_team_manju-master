@@ -13,13 +13,16 @@ from unittest.mock import patch
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from src.minimax_clone import build_clone_body, new_voice_id  # noqa: E402
+from datetime import datetime  # noqa: E402
+
+from src.minimax_clone import build_clone_body, compose_voice_id  # noqa: E402
 from src.studio.audio_sample import MAX_BYTES, SampleError, assert_limits  # noqa: E402
 from src.studio.compile_episode import build_locked  # noqa: E402
 from src.studio.jobs import resynth_line, run_pipeline  # noqa: E402
 from src.studio.jobs import Job  # noqa: E402
 from src.studio.voice_slots import (  # noqa: E402
     bind_speaker,
+    classify_account_voice,
     load_slots,
     perform_clone,
     public_slot,
@@ -102,12 +105,35 @@ class SlotTests(unittest.TestCase):
         self.assertNotIn("packaged_voice_id", shown)
 
     def test_clone_body_omits_packaged_id(self) -> None:
-        body = build_clone_body(12, new_voice_id())
-        dumped = json.dumps(body)
-        self.assertNotIn("AiEnterpriseOwner", dumped)
-        self.assertNotIn("FemaleZhaoShangLead", dumped)
+        voice_id = compose_voice_id("Sample", datetime(2026, 10, 11, 23, 5, 1))
+        body = build_clone_body(12, voice_id)
+        self.assertEqual(body["voice_id"], "Manju-Sample-20261011230501")
+        self.assertNotEqual(body["voice_id"], "AiEnterpriseOwner")
+        self.assertNotEqual(body["voice_id"], "FemaleZhaoShangLead")
         self.assertEqual(body["need_noise_reduction"], True)
         self.assertEqual(body["need_volume_normalization"], False)
+
+    def test_known_packaged_id_is_reused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            load_slots(root, REPO)
+            shown = perform_clone(
+                root,
+                REPO,
+                "ai-enterprise-owner",
+                known_ids=lambda: {"AiEnterpriseOwner"},
+            )
+            self.assertEqual(shown["selectable"], True)
+            slots = load_slots(root, REPO)
+            self.assertEqual(slots[0]["account_voice_id"], "AiEnterpriseOwner")
+            self.assertEqual(slots[0]["status"], "ready")
+
+    def test_account_voice_label(self) -> None:
+        slots = [{"account_voice_id": "ManjuSample20261011230501", "name": "样品"}]
+        self.assertEqual(classify_account_voice("ManjuSample20261011230501", slots), "样品")
+        self.assertEqual(classify_account_voice("Dh6IP20260814104340", []), "数字人项目")
+        self.assertEqual(classify_account_voice("PengJingIP20260729160021", []), "数字人项目")
+        self.assertEqual(classify_account_voice("moss_audio_example", []), "认不出")
 
     def test_limits_reject_before_clone(self) -> None:
         with self.assertRaises(SampleError):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -17,9 +18,16 @@ PostMultipart = Callable[[str, dict[str, str], dict[str, tuple[str, bytes, str]]
 PostJson = Callable[[str, dict[str, Any], dict[str, str]], dict[str, Any]]
 
 
-def new_voice_id() -> str:
-    """字母开头，长度与字符集符合 MiniMax 自定义 voice_id。"""
-    return "V" + uuid.uuid4().hex
+def compose_voice_id(subject: str, when: datetime | None = None) -> str:
+    """编号里写上项目、是谁、时间。账号列表没有别的名字可看。"""
+    stamp = (when or datetime.now()).strftime("%Y%m%d%H%M%S")
+    token = re.sub(r"[^A-Za-z0-9]", "", subject or "")
+    if not token or not token[0].isalpha():
+        token = "Voice" + token
+    voice = f"Manju-{token[:40]}-{stamp}"
+    if not _VOICE_ID_RE.match(voice):
+        raise ValueError("voice_id 不合法")
+    return voice
 
 
 def build_clone_body(file_id: int, voice_id: str) -> dict[str, Any]:
@@ -100,7 +108,7 @@ def _default_post(url: str, body: dict[str, Any], headers: dict[str, str]) -> di
         raise RuntimeError(f"MiniMax HTTP {exc.code}: {msg}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"MiniMax 请求失败: {exc.reason}") from exc
-    _assert_ok(payload, "MiniMax POST /v1/voice_clone")
+    _assert_ok(payload, "MiniMax POST")
     return payload
 
 
@@ -157,3 +165,42 @@ def activate_voice(
     """预览不算激活。短句同步合成后这个 voice_id 才会留下来。"""
     fn = speak or synthesize_to_mp3
     fn(voice_id=voice_id, text=ACTIVATE_TEXT, out_path=dest, model=model, api_key=api_key)
+
+
+def _auth_headers(api_key: str | None) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {require_api_key(api_key)}",
+        "Content-Type": "application/json",
+    }
+
+
+def list_cloning_voices(
+    *,
+    api_key: str | None = None,
+    post_json: PostJson | None = None,
+) -> list[dict[str, Any]]:
+    send = post_json or _default_post
+    payload = send(
+        f"{API_BASE}/v1/get_voice",
+        {"voice_type": "voice_cloning"},
+        _auth_headers(api_key),
+    )
+    rows = payload.get("voice_cloning") or []
+    return [row for row in rows if isinstance(row, dict) and row.get("voice_id")]
+
+
+def delete_cloned_voice(
+    voice_id: str,
+    *,
+    api_key: str | None = None,
+    post_json: PostJson | None = None,
+) -> None:
+    voice = str(voice_id or "").strip()
+    if not _VOICE_ID_RE.match(voice):
+        raise ValueError("voice_id 不合法")
+    send = post_json or _default_post
+    send(
+        f"{API_BASE}/v1/delete_voice",
+        {"voice_type": "voice_cloning", "voice_id": voice},
+        _auth_headers(api_key),
+    )

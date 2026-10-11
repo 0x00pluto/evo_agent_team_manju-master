@@ -197,6 +197,8 @@ module.exports = {
       cloneSlot: bind('cloneSlot'),
       replaceSlot: bind('replaceSlot'),
       addSlot: bind('addSlot'),
+      listAccountVoices: bind('listAccountVoices'),
+      deleteAccountVoice: bind('deleteAccountVoice'),
       generateVoice: bind('generateVoice'),
     });
   },

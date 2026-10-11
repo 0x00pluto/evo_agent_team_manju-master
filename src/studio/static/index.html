@@ -310,6 +310,24 @@
               </fieldset>
             </div>
           </div>
+          <div class="mt-8">
+            <h2 class="font-semibold mb-3">账号里的音色</h2>
+            <p class="text-sm text-base-content/60 mb-3">MiniMax 后台不能删除。下面是这个账号里的克隆音色，认不出的可以在这里删。删掉的编号不能再用。</p>
+            <p class="text-base-content/60" x-show="!accountVoices.length">还没有读到账号里的音色。</p>
+            <template x-for="row in accountVoices" :key="row.voice_id">
+              <article class="card card-border bg-base-100 mb-3 min-w-0 max-w-full">
+                <div class="card-body gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="min-w-0">
+                    <h3 class="font-semibold" x-text="row.label"></h3>
+                    <p class="text-sm break-all" x-text="row.voice_id"></p>
+                    <p class="text-sm text-base-content/60" x-text="row.created_time"></p>
+                    <p class="text-sm text-base-content/60" x-show="row.themes.length" x-text="'仍被这些成片使用：' + row.themes.join('、')"></p>
+                  </div>
+                  <button type="button" class="btn btn-sm shrink-0" @click="deleteAccountVoice(row)">删除</button>
+                </div>
+              </article>
+            </template>
+          </div>
         </section>
 
         <section class="mt-4" x-show="benchTab === 'voice'">
@@ -450,6 +468,7 @@
         revealMsg: "",
         toast: "",
         slots: [],
+        accountVoices: [],
         minimaxReady: true,
         newSlotName: "",
         cloneTimer: 0,
@@ -527,6 +546,31 @@
           this.slots = data.slots || [];
           this.minimaxReady = data.minimax_ready !== false;
           if (this.bench) this.bench.minimax_ready = this.minimaxReady;
+        },
+        async refreshAccountVoices() {
+          try {
+            const data = await callStudio("listAccountVoices", {}, () => fetch("/api/voice-slots/account"));
+            this.accountVoices = data.voices || [];
+          } catch (err) {
+            this.accountVoices = [];
+            this.error = err && err.message ? err.message : "账号里的音色没有读到";
+          }
+        },
+        async deleteAccountVoice(row) {
+          const note = row.themes && row.themes.length ? "有成片还写着这个编号。" : "";
+          if (!window.confirm("删除「" + row.label + "」？" + note + "删掉的编号不能再用。")) return;
+          this.error = "";
+          try {
+            await callStudio("deleteAccountVoice", { voice_id: row.voice_id }, () => fetch("/api/voice-slots/account-delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ voice_id: row.voice_id }),
+            }));
+            await this.refreshSlots();
+            await this.refreshAccountVoices();
+          } catch (err) {
+            this.error = err && err.message ? err.message : "没有删除这个声音";
+          }
         },
         watchClones() {
           if (this.cloneTimer) return;
@@ -712,6 +756,7 @@
             this.revealMsg = "";
             this.screen = "bench";
             await this.refreshSlots();
+            await this.refreshAccountVoices();
             this.watchClones();
             window.scrollTo(0, 0);
           } catch (err) {
