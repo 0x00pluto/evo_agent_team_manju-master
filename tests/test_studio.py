@@ -745,8 +745,19 @@ class ServerTests(unittest.TestCase):
             conn.request("GET", "/")
             page = conn.getresponse().read().decode("utf-8")
             self.assertIn("漫剧操作台", page)
-            self.assertIn("飞书文档", page)
-            self.assertIn("上传脚本", page)
+            nav = page.split("<main", 1)[0]
+            self.assertIn('<button type="button" class="font-semibold tracking-wide" @click="newScript()">AI漫剧大师</button>', nav)
+            intake = page.split("screen === 'prompt'", 1)[0].split("screen === 'intake'", 1)[1]
+            prompt = page.split("screen === 'prompt'", 1)[1].split("screen === 'history'", 1)[0]
+            self.assertIn("加载脚本", intake)
+            self.assertIn("飞书链接", intake)
+            self.assertIn("上传文件", intake)
+            self.assertIn("粘贴正文", intake)
+            self.assertIn("下一步", intake)
+            self.assertNotIn("生成提示词", intake)
+            self.assertNotIn("MiniMax", intake)
+            self.assertIn("生成提示词", prompt)
+            self.assertIn("MiniMax", prompt)
             self.assertIn("生成分镜", page)
             self.assertIn("按标题分段", page)
             self.assertIn("让模型分段", page)

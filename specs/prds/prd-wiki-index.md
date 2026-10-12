@@ -7,3 +7,4 @@
 | 序号 | 路径 | 说明 |
 |------|------|------|
 | 00001 | specs/prds/prd-00001-studio-voice-cast.md | 开场改为先出提示词，再按角色把音色插槽确认后才配音。工程 partial |
+| 00002 | specs/prds/prd-00002-script-intake.md | 开场拆成先加载脚本并选段，再在下一页生成提示词。工程 accepted |

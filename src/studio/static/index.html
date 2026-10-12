@@ -87,7 +87,7 @@
 <body class="bg-base-100 text-base-content min-h-screen" x-data="studio()" x-init="init()" x-cloak>
   <div class="navbar border-b border-base-300 px-5 max-w-[1120px] mx-auto">
     <div class="navbar-start">
-      <p class="font-semibold tracking-wide">AI漫剧大师</p>
+      <button type="button" class="font-semibold tracking-wide" @click="newScript()">AI漫剧大师</button>
     </div>
     <div class="navbar-end">
       <button type="button" class="btn btn-ghost" @click="openHistory()">
@@ -105,38 +105,54 @@
     </ul>
 
     <template x-if="screen === 'intake'">
-      <form class="grid gap-4" :class="dragging ? 'outline outline-base-content' : ''" @submit.prevent="start"
+      <form class="grid gap-4" :class="dragging ? 'outline outline-base-content' : ''" @submit.prevent="loadScript"
             @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
         <div>
-          <h1 class="serif text-3xl font-semibold">生成提示词</h1>
-          <p class="mt-2 text-base-content/60 max-w-xl">加载脚本并为每段选好之后，这一步只写出人物、场景和分镜。配音要等角色声音都选好。</p>
+          <h1 class="serif text-3xl font-semibold">加载脚本</h1>
+          <p class="mt-2 text-base-content/60 max-w-xl">读入脚本，选择分段方式后加载。为每一段选好用途。提示词在下一步生成。</p>
         </div>
-        <div class="alert alert-soft">
-          <iconify-icon icon="lucide:clapperboard" aria-hidden="true"></iconify-icon>
-          <span>这一步不配音。还没填 MiniMax 密钥，或声音还不能用时，提示词仍然可以复制。</span>
-        </div>
-        <fieldset class="fieldset bg-base-100 border border-base-300 p-4">
-          <legend class="fieldset-legend">飞书文档</legend>
-          <input class="input w-full" type="url" x-model="feishuUrl" placeholder="粘贴飞书 wiki 或 docx 链接" @input="onUrlInput" />
+        <fieldset class="fieldset bg-base-100 border border-base-300 p-4" :disabled="busy">
+          <legend class="fieldset-legend">脚本</legend>
+          <div class="flex flex-wrap gap-4">
+            <label class="flex items-center gap-2">
+              <input type="radio" class="radio radio-sm" name="script-source" value="feishu" x-model="source" @change="applySource($event.target.value)" />
+              飞书链接
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="radio" class="radio radio-sm" name="script-source" value="file" x-model="source" @change="applySource($event.target.value)" />
+              上传文件
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="radio" class="radio radio-sm" name="script-source" value="paste" x-model="source" @change="applySource($event.target.value)" />
+              粘贴正文
+            </label>
+          </div>
+          <template x-if="source === 'feishu'">
+            <input class="input w-full mt-4" type="url" x-model="feishuUrl" placeholder="粘贴飞书 wiki 或 docx 链接" @input="invalidate" />
+          </template>
+          <template x-if="source === 'file'">
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+              <input class="file-input" type="file" accept=".md,.markdown,.txt,text/plain" @change="onFile($event)" />
+              <span class="badge badge-ghost" x-show="fileName">
+                <span x-text="fileName"></span>
+                <button type="button" class="btn btn-ghost btn-xs" @click="clearFile">移除</button>
+              </span>
+            </div>
+          </template>
+          <template x-if="source === 'paste'">
+            <textarea class="textarea w-full mt-4" rows="8" x-model="pasteText" placeholder="粘贴脚本正文" @input="invalidate"></textarea>
+          </template>
           <div class="pulse mt-3" x-show="busy" aria-hidden="true"><span></span></div>
           <div class="mt-4 flex flex-wrap items-center gap-2">
             <label class="text-sm text-base-content/60" for="split-with">分段</label>
-            <select id="split-with" class="select" x-model="splitWith">
+            <select id="split-with" class="select" x-model="splitWith" @change="invalidate">
               <option value="program">按标题分段</option>
               <option value="model">让模型分段</option>
             </select>
-            <button type="button" class="btn" @click="readFeishu" :disabled="busy || !feishuOk">加载</button>
-            <label class="flex items-center gap-2">
-              <span>上传脚本</span>
-              <input class="file-input" type="file" accept=".md,.markdown,.txt,text/plain" @change="onFile($event)" />
-            </label>
-            <span class="badge badge-ghost" x-show="fileName">
-              <span x-text="fileName"></span>
-              <button type="button" class="btn btn-ghost btn-xs" @click="clearFile">移除</button>
-            </span>
+            <button type="submit" class="btn" :disabled="!canLoad">加载</button>
           </div>
         </fieldset>
-        <ul class="divide-y divide-base-300" x-show="sections.length">
+        <ul class="divide-y divide-base-300" x-show="sections.length && !busy">
           <template x-for="sec in sections" :key="sec.index">
             <li class="py-3 flex flex-row flex-wrap items-center justify-between gap-3">
               <div class="min-w-0 flex-1">
@@ -157,7 +173,36 @@
           </template>
         </ul>
         <div class="flex justify-end">
-          <button class="btn btn-primary" type="submit" :disabled="busy || !canStart">
+          <button class="btn btn-primary" type="button" @click="nextPage" :disabled="!canNext">下一步</button>
+        </div>
+        <p class="text-base-content/60" x-show="statusText" x-text="statusText" role="status"></p>
+        <div class="alert alert-error" x-show="error" role="alert">
+          <span x-text="error"></span>
+        </div>
+      </form>
+    </template>
+
+    <template x-if="screen === 'prompt'">
+      <form class="grid gap-4" @submit.prevent="start">
+        <div>
+          <h1 class="serif text-3xl font-semibold">生成提示词</h1>
+          <p class="mt-2 text-base-content/60 max-w-xl">按上一步选好的段落，写出人物、场景和分镜。配音要等角色声音都选好。</p>
+        </div>
+        <div class="alert alert-soft">
+          <iconify-icon icon="lucide:clapperboard" aria-hidden="true"></iconify-icon>
+          <span>这一步不配音。还没填 MiniMax 密钥，或声音还不能用时，提示词仍然可以复制。</span>
+        </div>
+        <ul class="divide-y divide-base-300">
+          <template x-for="sec in sections" :key="sec.index">
+            <li class="py-3 flex flex-row flex-wrap items-center justify-between gap-3">
+              <strong class="min-w-0 flex-1" x-text="sec.title"></strong>
+              <span class="shrink-0" x-text="sec.mode === 'shot' ? '生成分镜' : '只配音'"></span>
+            </li>
+          </template>
+        </ul>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" class="btn mr-auto" x-show="!busy" @click="backToLoad">返回</button>
+          <button class="btn btn-primary" type="submit" :disabled="busy || !canGenerate">
             <span class="loading loading-spinner loading-sm" x-show="busy"></span>
             <span x-text="busy ? '进行中' : '生成提示词'"></span>
           </button>
@@ -431,12 +476,15 @@
       Alpine.data("studio", () => ({
         screen: "intake",
         returnScreen: "intake",
+        source: "feishu",
         feishuUrl: "",
         splitWith: "program",
         sections: [],
         fileName: "",
         stagedPath: "",
-        scriptText: "",
+        fileText: "",
+        pasteText: "",
+        loadedScript: "",
         dragging: false,
         busy: false,
         error: "",
@@ -458,13 +506,21 @@
           const found = url.match(FEISHU);
           return Boolean(found) && found[0] === url;
         },
-        get canStart() {
-          const hasSource = Boolean(this.stagedPath) || Boolean(this.scriptText) || this.feishuOk;
-          return hasSource && this.sections.length > 0;
+        get canLoad() {
+          if (this.busy) return false;
+          if (this.source === "feishu") return this.feishuOk;
+          if (this.source === "file") return Boolean(this.fileName) && (Boolean(this.stagedPath) || Boolean(this.fileText));
+          return Boolean(this.pasteText.trim());
+        },
+        get canNext() {
+          return !this.busy && this.sections.length > 0;
+        },
+        get canGenerate() {
+          return !this.busy && this.sections.length > 0 && Boolean(this.loadedScript);
         },
         get stepOn() {
           if (this.screen === "bench") return 2;
-          if (this.sections.length || this.busy) return 1;
+          if (this.screen === "prompt") return 1;
           return 0;
         },
         get castNeeds() {
@@ -514,8 +570,10 @@
           window.scrollTo(0, 0);
         },
         closeHistory() {
-          const back = this.returnScreen === "bench" && this.bench ? "bench" : "intake";
-          this.screen = back;
+          const back = this.returnScreen;
+          if (back === "bench" && this.bench) this.screen = "bench";
+          else if (back === "prompt") this.screen = "prompt";
+          else this.screen = "intake";
           window.scrollTo(0, 0);
         },
         async loadRecent() {
@@ -544,108 +602,165 @@
             }
           }, 1500);
         },
-        onUrlInput() {
-          if (!this.feishuUrl.trim()) return;
-          this.stagedPath = "";
-          this.scriptText = "";
-          this.fileName = "";
+        invalidate() {
           this.sections = [];
+          this.loadedScript = "";
+          this.error = "";
+          this.statusText = "";
+        },
+        applySource(next) {
+          this.source = next;
+          if (next !== "feishu") this.feishuUrl = "";
+          if (next !== "file") {
+            this.fileName = "";
+            this.stagedPath = "";
+            this.fileText = "";
+          }
+          if (next !== "paste") this.pasteText = "";
+          this.invalidate();
         },
         async onFile(event) {
-          const file = event.target.files && event.target.files[0];
-          if (file) await this.upload(file);
+          const input = event.target;
+          const file = input.files && input.files[0];
+          input.value = "";
+          if (file) await this.takeFile(file);
         },
         async onDrop(event) {
           this.dragging = false;
+          if (this.busy) return;
           const file = event.dataTransfer.files && event.dataTransfer.files[0];
-          if (file) await this.upload(file);
+          if (file) await this.takeFile(file);
         },
-        async upload(file) {
-          this.error = "";
-          this.feishuUrl = "";
-          this.sections = [];
-          this.stagedPath = "";
-          this.scriptText = "";
-          this.fileName = file.name;
-          if (inHub()) {
-            this.scriptText = await file.text();
-            await this.preview({ script_text: this.scriptText, filename: file.name });
+        async takeFile(file) {
+          if (this.busy || !file) return;
+          const name = file.name || "";
+          if (!/\.(md|markdown|txt)$/i.test(name)) {
+            this.error = "只接收 .md / .txt 脚本";
             return;
           }
+          this.applySource("file");
+          this.fileName = "";
+          this.stagedPath = "";
+          this.fileText = "";
           try {
+            if (inHub()) {
+              this.fileText = await file.text();
+              this.fileName = name;
+              return;
+            }
             const res = await fetch("/api/stage", {
               method: "POST",
-              headers: { "X-Filename": encodeURIComponent(file.name) },
+              headers: { "X-Filename": encodeURIComponent(name) },
               body: file,
             });
             const data = await res.json();
             if (!res.ok) {
               this.error = data.error || "上传失败";
-              this.fileName = "";
               return;
             }
             this.stagedPath = data.path;
-            this.fileName = data.filename;
-            await this.preview({ staged_path: this.stagedPath });
+            this.fileName = data.filename || name;
           } catch (err) {
             this.fileName = "";
+            this.stagedPath = "";
+            this.fileText = "";
             this.error = err && err.message ? err.message : "上传失败";
           }
         },
         clearFile() {
-          this.stagedPath = "";
-          this.scriptText = "";
+          if (this.busy) return;
           this.fileName = "";
-          this.sections = [];
+          this.stagedPath = "";
+          this.fileText = "";
+          this.invalidate();
         },
-        async readFeishu() {
+        loadBody() {
+          if (this.source === "feishu") return { feishu_url: this.feishuUrl.trim() };
+          if (this.source === "file") {
+            if (this.stagedPath) return { staged_path: this.stagedPath };
+            return { script_text: this.fileText, filename: this.fileName };
+          }
+          return { script_text: this.pasteText };
+        },
+        async loadScript() {
+          if (this.busy || !this.canLoad) return;
+          const request = Object.assign({}, this.loadBody(), { split_with: this.splitWith });
+          this.sections = [];
+          this.loadedScript = "";
           this.error = "";
-          this.stagedPath = "";
-          this.scriptText = "";
-          this.fileName = "";
-          this.sections = [];
-          await this.preview({ feishu_url: this.feishuUrl.trim() });
-        },
-        async preview(body) {
-          const request = Object.assign({}, body, { split_with: this.splitWith });
           this.busy = true;
-          this.statusText = this.splitWith === "model" ? "正在让模型分段" : "正在加载脚本";
+          this.statusText = request.split_with === "model" ? "正在让模型分段" : "正在加载脚本";
           this.live = this.statusText;
           try {
+            await this.$nextTick();
             const data = await callStudio("preview", request, () => fetch("/api/preview", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(request),
             }));
-            this.sections = data.sections || [];
-            if (data.script_text) this.scriptText = data.script_text;
+            const rows = data.sections || [];
+            const text = data.script_text || "";
+            if (!rows.length || !text) {
+              this.sections = [];
+              this.loadedScript = "";
+              this.error = "没能把脚本整理成分段";
+              return;
+            }
+            this.sections = rows;
+            this.loadedScript = text;
           } catch (err) {
+            this.sections = [];
+            this.loadedScript = "";
             this.error = err && err.message ? err.message : "加载不到脚本";
           } finally {
             this.busy = false;
             this.statusText = "";
           }
         },
-        sourceBody() {
-          if (this.scriptText) {
-            return { script_text: this.scriptText, filename: this.fileName };
-          }
-          if (this.stagedPath) return { staged_path: this.stagedPath };
-          return { feishu_url: this.feishuUrl.trim() };
+        nextPage() {
+          if (!this.canNext) return;
+          this.error = "";
+          this.statusText = "";
+          this.screen = "prompt";
+          window.scrollTo(0, 0);
+        },
+        backToLoad() {
+          if (this.busy) return;
+          this.error = "";
+          this.statusText = "";
+          this.screen = "intake";
+          window.scrollTo(0, 0);
+        },
+        newScript() {
+          if (this.screen === "prompt" && this.busy) return;
+          this.source = "feishu";
+          this.feishuUrl = "";
+          this.fileName = "";
+          this.stagedPath = "";
+          this.fileText = "";
+          this.pasteText = "";
+          this.loadedScript = "";
+          this.sections = [];
+          this.error = "";
+          this.statusText = "";
+          this.screen = "intake";
+          window.scrollTo(0, 0);
         },
         async start() {
+          if (this.busy || !this.canGenerate) return;
           this.error = "";
           this.busy = true;
           this.statusText = "正在生成提示词";
           this.live = this.statusText;
-          const body = Object.assign(this.sourceBody(), {
+          const body = {
+            script_text: this.loadedScript,
             sections: this.sections.map((sec) => ({
               index: sec.index,
               mode: sec.mode,
               title: sec.title,
               start: sec.start,
             })),
-          });
+          };
           try {
             const data = await callStudio("createJob", body, () => fetch("/api/jobs", {
               method: "POST",
