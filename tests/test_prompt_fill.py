@@ -15,7 +15,13 @@ sys.path.insert(0, str(REPO))
 
 from src.env_load import load_dotenv, require_deepseek_api_key
 from src.generate_episode import generate_episode
-from src.prompt_fill import build_prompt, fill, load_style_and_duration, parse_style_id
+from src.prompt_fill import (
+    build_prompt,
+    fill,
+    load_style_and_duration,
+    parse_style_id,
+    read_template,
+)
 
 
 class EnvLoadTests(unittest.TestCase):
@@ -64,7 +70,8 @@ class PromptFillTests(unittest.TestCase):
                 "sfx": "",
                 "lighting": "",
                 "scene_ref": "old_site",
-                "ref_images": "图1",
+                "ref_images": "图1: {{Mixed 1}} 企业主三视图；图2: {{Mixed 2}}",
+                "scene_slot": "{{Mixed 2}}",
             },
         )
         self.assertIn("电影级写实", prompt)
@@ -72,10 +79,49 @@ class PromptFillTests(unittest.TestCase):
         self.assertIn("废除", prompt)
         self.assertIn("先空间", prompt)
         self.assertIn("无路径换阵", prompt)
+        self.assertIn("硬切", prompt)
+        self.assertIn("竖屏", prompt)
+        self.assertIn("缓推", prompt)
+        self.assertIn("拉远", prompt)
+        self.assertIn("慢摇", prompt)
+        self.assertIn("环绕", prompt)
+        self.assertIn("不是菜单", prompt)
+        self.assertNotIn("甩", prompt)
         # 不钉动作、不锁运镜菜单
         self.assertNotIn("默认不迈步", prompt)
         self.assertNotIn("脚钉死", prompt)
         self.assertNotIn("运镜三选一", prompt)
+
+    def test_camera_catalog_stays_out_of_shot_prompt(self) -> None:
+        catalog = read_template("camera_moves.md")
+        self.assertIn("升", catalog)
+        self.assertIn("跟", catalog)
+        self.assertIn("甩", catalog)
+        self.assertIn("介绍园区", catalog)
+        self.assertNotIn("camera_moves", load_style_and_duration())
+
+    def test_scene_prompt_requires_empty_hero_seats(self) -> None:
+        prompt = build_prompt(
+            "scene.md",
+            {
+                "time_of_day": "白天",
+                "space": "洽谈区",
+                "light": "自然光",
+                "props": "资料",
+            },
+        )
+        self.assertIn("主位座椅", prompt)
+        self.assertIn("不要坐着或站着可辨认的对谈者或主角", prompt)
+        self.assertIn("不要主角入画", prompt)
+        self.assertIn("不要把风格里的「过肩 / 肩扛」写成有人肩线入画的机位", prompt)
+
+    def test_compile_draft_uses_hard_cut_and_empty_scene(self) -> None:
+        from src.studio.compile_episode import _SYSTEM
+
+        self.assertIn("慢摇给园区", _SYSTEM)
+        self.assertIn("不是菜单", _SYSTEM)
+        self.assertNotIn("不要写横移", _SYSTEM)
+        self.assertIn("主位座椅空着", _SYSTEM)
 
     def test_missing_placeholder_raises(self) -> None:
         with self.assertRaises(KeyError):

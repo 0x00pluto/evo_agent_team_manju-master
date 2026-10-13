@@ -23,6 +23,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from src.studio.bench import _fact_paths, load_bench, output_dir, parse_shots, validate_theme  # noqa: E402
+from src.studio.dev_reload import mtime_snapshot, python_sources, should_reload  # noqa: E402
 from src.studio.compile_episode import (  # noqa: E402
     build_locked,
     compile_bundle,
@@ -30,6 +31,7 @@ from src.studio.compile_episode import (  # noqa: E402
     parse_sections,
     split_sections,
     validate_bundle,
+    _ref_images,
 )
 from src.script_preprocess import preprocess_script  # noqa: E402
 from src.generate_episode import render_shot  # noqa: E402
@@ -406,11 +408,14 @@ class SectionTests(unittest.TestCase):
         self.assertFalse(any("实地聊聊" in text for text in texts))
         self.assertTrue(any('"一万两千"' in line["text"] for line in out["voiceover"]["lines"]))
         refs = out["episode"]["shots"][0]["ref_images"]
-        self.assertIn("图1企业老板三视图", refs)
-        self.assertIn("图2招商运营三视图", refs)
-        self.assertIn("场景贴图", refs)
-        self.assertIn("可选面部特写", refs)
-        self.assertNotIn("无", refs)
+        self.assertEqual(
+            refs,
+            "图1: {{Mixed 1}} 企业老板三视图；图2: {{Mixed 2}} 招商运营三视图；图3: {{Mixed 3}}",
+        )
+        self.assertEqual(out["episode"]["shots"][0]["scene_slot"], "{{Mixed 3}}")
+        self.assertNotIn("可选面部特写", refs)
+        self.assertNotIn("钩子引入", refs)
+        self.assertNotIn("场景贴图", refs)
 
     def test_bold_wrapped_headings_split_four_ways(self) -> None:
         sections = parse_sections(YANGTZE)
@@ -622,6 +627,39 @@ class SectionTests(unittest.TestCase):
         self.assertIn("企业主：我这厂房是真不够用了。", payload["script_text"])
         self.assertNotIn("改写了", payload["script_text"])
 
+    def test_preview_lines_keep_full_spoken_text(self) -> None:
+        long_line = "这是一句超过四十二个汉字的台词用来确认页面和接口都不会再把句子截断后面还有更多字要完整留下来给制作者核对"
+        script = (
+            "角色说明不要进列表。\n\n"
+            "【对白段】\n"
+            f"企业老板（语气平静）：{long_line}\n"
+            "招商运营：园区会陪着走。\n"
+            "东湖高新集团深耕园区运营三十多年，这句话也要完整保留。\n\n"
+            "【纯旁白】\n"
+            "先看厂房，再看服务。\n\n"
+            "【空段】\n"
+        )
+        payload = preview_payload(script)
+        sections = payload["sections"]
+        self.assertEqual([row["title"] for row in sections], ["对白段", "纯旁白", "空段"])
+        dialogue = sections[0]["lines"]
+        self.assertEqual(
+            dialogue,
+            [
+                {"speaker": "企业老板", "text": long_line},
+                {"speaker": "招商运营", "text": "园区会陪着走。"},
+                {"speaker": "旁白", "text": "东湖高新集团深耕园区运营三十多年，这句话也要完整保留。"},
+            ],
+        )
+        self.assertGreater(len(long_line), 42)
+        self.assertEqual(sections[0]["preview"], long_line[:42])
+        self.assertNotIn("语气平静", json.dumps(dialogue, ensure_ascii=False))
+        self.assertEqual(
+            sections[1]["lines"],
+            [{"speaker": "旁白", "text": "先看厂房，再看服务。"}],
+        )
+        self.assertEqual(sections[2]["lines"], [])
+
     def test_url_is_not_scraped_from_prose(self) -> None:
         prose = "你看一下该如何搞 https://fcnegd976pzo.feishu.cn/wiki/NWvKwCfy8ihL2ZkVCWScSrOznum"
         self.assertEqual(explicit_feishu_url({"instruction": prose}), "")
@@ -663,9 +701,11 @@ class JobTests(unittest.TestCase):
             job.status = "done"
 
         manager = JobManager(REPO, pipeline=pipeline)
+        self.assertFalse(manager.is_busy())
         script = "【钩子】\n企业老板：我们缺的从来不是空间，是资源。\n"
         selections = [{"index": 0, "mode": "shot"}]
         first = manager.create(script, selections)
+        self.assertTrue(manager.is_busy())
         with self.assertRaises(RuntimeError):
             manager.create(script, selections)
         gate.set()
@@ -674,6 +714,11 @@ class JobTests(unittest.TestCase):
                 break
             time.sleep(0.05)
         self.assertEqual(manager.get(first.id).status, "done")
+        for _ in range(40):
+            if not manager.is_busy():
+                break
+            time.sleep(0.05)
+        self.assertFalse(manager.is_busy())
 
     def test_stamp_slug_uses_clock_then_name(self) -> None:
         when = datetime(2026, 9, 29, 9, 58, 0)
@@ -720,23 +765,76 @@ class JobTests(unittest.TestCase):
 
     def test_shot_prompt_keeps_ref_line(self) -> None:
         def chat(_messages: list) -> str:
-            return "```text\n【V01】\n参考图：无\n景别：中景\n```"
+            return (
+                "```text\n【V01】\n参考图：无\n景别：中景\n"
+                "场景：scene-1（0-12秒·钩子引入）\n风格：电影级\n```"
+            )
 
         text = render_shot(
             {
                 "id": "V01",
                 "dialogue": [{"speaker": "企业主", "text": "一句"}],
-                "ref_images": "图1企业主三视图；图2旧厂房场景贴图；可选面部特写",
+                "ref_images": "图1: {{Mixed 1}} 企业主三视图；图2: {{Mixed 2}}",
+                "scene_slot": "{{Mixed 2}}",
             },
             chat_fn=chat,
         )
-        self.assertIn("参考图：图1企业主三视图；图2旧厂房场景贴图；可选面部特写", text)
+        self.assertIn("参考图：图1: {{Mixed 1}} 企业主三视图；图2: {{Mixed 2}}", text)
+        self.assertIn("场景：{{Mixed 2}}", text)
         self.assertNotIn("参考图：无", text)
+        self.assertNotIn("钩子引入", text)
+
+    def test_shot_prompt_leaves_scene_without_mixed_slot(self) -> None:
+        def chat(_messages: list) -> str:
+            return "```text\n参考图：无\n场景：旧厂房\n```"
+
+        text = render_shot(
+            {
+                "id": "V01",
+                "dialogue": [{"speaker": "企业主", "text": "一句"}],
+                "ref_images": "图1企业主三视图",
+            },
+            chat_fn=chat,
+        )
+        self.assertIn("参考图：图1企业主三视图", text)
+        self.assertIn("场景：旧厂房", text)
+
+    def test_narrator_only_ref_is_scene_slot(self) -> None:
+        refs, slot = _ref_images(
+            {"dialogue": [{"speaker": "旁白", "text": "一句旁白"}]}
+        )
+        self.assertEqual(refs, "图1: {{Mixed 1}}")
+        self.assertEqual(slot, "{{Mixed 1}}")
+
+
+class DevReloadTests(unittest.TestCase):
+    def test_reload_when_idle_and_source_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            src = root / "src"
+            src.mkdir()
+            target = src / "mod.py"
+            target.write_text("a = 1\n", encoding="utf-8")
+            scripts = root / "scripts"
+            scripts.mkdir()
+            entry = scripts / "run_studio.py"
+            entry.write_text("# entry\n", encoding="utf-8")
+            (root / "output").mkdir()
+            (root / "output" / "skip.py").write_text("x = 1\n", encoding="utf-8")
+            paths = python_sources(root)
+            self.assertEqual(paths, sorted([target, entry]))
+            before = mtime_snapshot(paths)
+            os.utime(target, (time.time() + 10, time.time() + 10))
+            after = mtime_snapshot(paths)
+            self.assertTrue(should_reload(before, after, busy=False))
+            self.assertFalse(should_reload(before, after, busy=True))
+            self.assertFalse(should_reload(after, after, busy=False))
 
 
 class ServerTests(unittest.TestCase):
     def test_index_and_blocks_escape(self) -> None:
         httpd = serve(REPO, host="127.0.0.1", port=0)
+        self.assertFalse(httpd.studio_manager.is_busy())
         port = httpd.server_address[1]
         thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         thread.start()

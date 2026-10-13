@@ -11,7 +11,7 @@ required: [style, duration_rules, blocking_rules, shot_id, duration_hint, dialog
 ## 生成顺序（思维链内完成，最终只输出九要素）
 
 1. **先空间**：按下方站位规则定场（谁在哪、面朝哪、是否已在画内）。
-2. **再运镜**：在已定空间里写运镜行。
+2. **再运镜**：在已定空间里写运镜行。运镜草案若只写成横移换脸，按本片选用改成符合这一拍情绪的手法，并让当前该看的人或园区留在镜头里。
 3. **再表演**：写动作行（可含走、转、手势），须能从起幅位置连续做完。
 
 ## 全局风格（风格行只引用，不要另写一套画风散文）
@@ -39,6 +39,9 @@ required: [style, duration_rules, blocking_rules, shot_id, duration_hint, dialog
 - 光影草案：{{lighting}}
 - 场景与挂图：{{scene_ref}}
 - 参考图清单：{{ref_images}}
+- 场景占位：{{scene_slot}}
+
+参考图行必须与参考图清单完全一致。场景占位若是 {{Mixed N}}，场景行只写这个占位，不要加场景编号、段落标题或时段。
 
 ## 输出格式（严格）
 
@@ -52,7 +55,7 @@ required: [style, duration_rules, blocking_rules, shot_id, duration_hint, dialog
 台词：…（必须与输入台词原文一致）
 音效：…
 光影：…
-场景：…
+场景：{{scene_slot}}
 风格：电影级写实仿真人短剧（与全局风格一致，一句话即可）
 ```
 

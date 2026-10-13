@@ -14,7 +14,8 @@ style_id: cinematic-photoreal-short-drama
 |---|---|---|
 | style | `style/<style_id>.md` | 统一画风句（中英）与禁止项 |
 | duration | `duration.md` | 字数控时、对手戏合并、不换场 |
-| blocking | `blocking.md` | 分镜先空间再运镜/表演；禁止无路径换阵 |
+| blocking | `blocking.md` | 分镜先空间再运镜/表演；禁止无路径换阵；只写本片选用 |
+| camera_moves | `camera_moves.md` | 运镜总表：什么时候用什么手法；不注入分镜成稿 |
 | character_sheet | `character_sheet.md` | 三视图生图骨架 |
 | character_closeup | `character_closeup.md` | 面部特写骨架 |
 | scene | `scene.md` | 场景贴图骨架 |
@@ -46,4 +47,5 @@ style_id: cinematic-photoreal-short-drama
 | `{{sfx}}` | 音效（可留空） |
 | `{{lighting}}` | 本镜光影（可留空） |
 | `{{scene_ref}}` | 场景与参考图 |
-| `{{ref_images}}` | LibTV 挂图清单 |
+| `{{ref_images}}` | LibTV 挂图清单（角色三视图 + 末张场景占位） |
+| `{{scene_slot}}` | 场景行，只写最后一张图的 `{{Mixed N}}` |

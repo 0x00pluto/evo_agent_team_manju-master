@@ -45,6 +45,7 @@ def render_shot(sh: dict[str, Any], *, chat_fn: ChatFn = chat) -> str:
         "lighting": sh.get("lighting", ""),
         "scene_ref": sh.get("scene_ref", ""),
         "ref_images": sh.get("ref_images", ""),
+        "scene_slot": resolve_scene_slot(sh) or "…",
     }
     content = chat_fn(
         [
@@ -62,18 +63,42 @@ def render_shot(sh: dict[str, Any], *, chat_fn: ChatFn = chat) -> str:
         ]
     )
     content = _lock_ref_line(content, str(sh.get("ref_images") or ""))
+    content = _lock_scene_line(content, resolve_scene_slot(sh))
     return f"## {sh.get('id', '')}\n\n{content.strip()}\n"
+
+
+_MIXED_SLOT_RE = re.compile(r"\{\{Mixed \d+\}\}")
+
+
+def resolve_scene_slot(sh: dict[str, Any]) -> str:
+    """场景行只留最后一张图的占位。旧稿没有 {{Mixed N}} 时返回空，交给模型原文。"""
+    slot = str(sh.get("scene_slot") or "").strip()
+    if slot:
+        return slot
+    found = _MIXED_SLOT_RE.findall(str(sh.get("ref_images") or ""))
+    return found[-1] if found else ""
+
+
+def _lock_labeled_line(content: str, label: str, value: str) -> str:
+    value = value.strip()
+    if not value:
+        return content
+    line = f"{label}：{value}"
+    if re.search(rf"^{label}：.*$", content, flags=re.M):
+        return re.sub(rf"^{label}：.*$", line, content, count=1, flags=re.M)
+    if re.search(r"^风格：", content, flags=re.M):
+        return re.sub(r"^风格：", f"{line}\n风格：", content, count=1, flags=re.M)
+    return content.replace("```text\n", f"```text\n{line}\n", 1)
 
 
 def _lock_ref_line(content: str, ref_images: str) -> str:
     """参考图清单由程序定死，模型写成「无」时换回来。"""
-    ref_images = ref_images.strip()
-    if not ref_images:
-        return content
-    line = f"参考图：{ref_images}"
-    if re.search(r"^参考图：.*$", content, flags=re.M):
-        return re.sub(r"^参考图：.*$", line, content, count=1, flags=re.M)
-    return content.replace("```text\n", f"```text\n{line}\n", 1)
+    return _lock_labeled_line(content, "参考图", ref_images)
+
+
+def _lock_scene_line(content: str, scene_slot: str) -> str:
+    """场景行只留 Mixed 占位，模型写上的段落标题会被盖掉。"""
+    return _lock_labeled_line(content, "场景", scene_slot)
 
 
 def upsert_shot_markdown(path: Path, shot_id: str, section: str, *, after_id: str | None = None) -> None:

@@ -19,7 +19,7 @@ from urllib.parse import unquote, urlparse
 
 from src.feishu_doc import fetch_document
 from src.studio.bench import list_recent, load_bench, validate_theme, voice_dir, voice_mp3
-from src.studio.compile_episode import prepare_script
+from src.studio.compile_episode import display_speaker, prepare_script
 from src.studio.jobs import JobManager, resynth_line
 from src.studio.audio_sample import SampleError, prepare_sample
 from src.studio.voice_slots import (
@@ -63,6 +63,22 @@ def explicit_feishu_url(payload: dict[str, Any]) -> str:
     return url
 
 
+def section_lines(section: dict[str, Any]) -> list[dict[str, str]]:
+    """交给页面核对的口播。空名在这里写成旁白，全文不截断。"""
+    rows: list[dict[str, str]] = []
+    for item in section.get("items") or []:
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        rows.append(
+            {
+                "speaker": display_speaker(str(item.get("speaker") or "")),
+                "text": text,
+            }
+        )
+    return rows
+
+
 def preview_payload(script: str, **kwargs: Any) -> dict[str, Any]:
     """按 split_with 切段。未指定时用程序。开始任务应提交这里的 script_text。"""
     raw_mode = kwargs.get("split_with")
@@ -81,6 +97,7 @@ def preview_payload(script: str, **kwargs: Any) -> dict[str, Any]:
                 "preview": section["preview"],
                 "mode": section["mode"],
                 "start": section.get("start") or "",
+                "lines": section_lines(section),
             }
         )
     if not rows:
@@ -568,4 +585,5 @@ def serve(root: Path, *, host: str = "127.0.0.1", port: int = 8767) -> Threading
     recover_slots(root, root)
     manager = JobManager(root)
     httpd = ThreadingHTTPServer((host, port), make_handler(manager, root))
+    httpd.studio_manager = manager  # type: ignore[attr-defined]
     return httpd

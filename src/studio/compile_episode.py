@@ -34,6 +34,8 @@ _SYSTEM = """你是漫剧美术。只输出一个 JSON 对象，不要解释，�
 - 场景 id 必须与给定 scene-1、scene-2… 一致，不要新造场景。
 - shots 的 id 必须与给定 V01、V02… 一致。不要返回 dialogue。
 - slug 只用小写英文、数字和短横线。角色 id 同样。
+- 场景的 space、props 只写空环境。主桌和主位座椅空着，不要把角色写进场景里坐着或站着。远处虚化、看不清脸的路人可以有。
+- 运镜草案按竖屏成片写。景别用先开口者的单人景别，不要写成横屏双人全景再滑过去。本片选用按情绪挑，不是菜单：仔细听用缓推，放松或看到环境用拉远，介绍园区用慢摇给园区，换脸用硬切，两人交代场景可环绕，话要落地用固定。不要每镜都缓推再硬切。不要用一次横移把两人的脸滑过去。
 
 JSON 形状：
 {
@@ -200,6 +202,7 @@ def validate_bundle(data: dict[str, Any], script: str) -> dict[str, Any]:
             "lighting",
             "scene_ref",
             "ref_images",
+            "scene_slot",
         ):
             sh.setdefault(key, "")
 
@@ -704,7 +707,7 @@ def _merge(locked: dict[str, Any], creative: dict[str, Any]) -> dict[str, Any]:
         row["dialogue"] = spec["dialogue"]
         row["scene_ref"] = spec["scene_ref"]
         row["duration_hint"] = spec["duration_hint"]
-        row["ref_images"] = _ref_images(spec, scenes)
+        row["ref_images"], row["scene_slot"] = _ref_images(spec)
         shots.append(row)
 
     return {
@@ -718,24 +721,24 @@ def _merge(locked: dict[str, Any], creative: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _ref_images(spec: dict[str, Any], scenes: list[dict[str, Any]]) -> str:
-    """按旧稿写挂图：出镜角色三视图，再加本镜场景贴图。"""
+def _mixed(index: int) -> str:
+    return f"{{{{Mixed {index}}}}}"
+
+
+def _ref_images(spec: dict[str, Any]) -> tuple[str, str]:
+    """出镜角色各留一张三视图，最后一张只留场景占位。不写段落标题。"""
     speakers: list[str] = []
     for item in spec.get("dialogue") or []:
         name = str(item.get("speaker") or "").strip()
         if name and name != NARRATOR and name not in speakers:
             speakers.append(name)
-    parts = [f"图{index}{name}三视图" for index, name in enumerate(speakers, start=1)]
-    scene_id = str(spec.get("scene_id") or "")
-    label = ""
-    for scene in scenes:
-        if str(scene.get("id") or "") == scene_id:
-            label = str(scene.get("label") or "").strip()
-            break
-    parts.append(f"图{len(parts) + 1}{label or '场景'}场景贴图")
-    if speakers:
-        parts.append("可选面部特写")
-    return "；".join(parts)
+    parts: list[str] = []
+    index = 1
+    for name in speakers:
+        parts.append(f"图{index}: {_mixed(index)} {name}三视图")
+        index += 1
+    parts.append(f"图{index}: {_mixed(index)}")
+    return "；".join(parts), _mixed(index)
 
 
 def assert_shot_membership(episode: dict[str, Any], locked: dict[str, Any]) -> None:

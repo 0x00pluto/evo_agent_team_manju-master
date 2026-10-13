@@ -74,7 +74,6 @@
       to { transform: translateX(350%); }
     }
     pre.prompt {
-      max-height: 11rem;
       max-width: 100%;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -154,10 +153,18 @@
         </fieldset>
         <ul class="divide-y divide-base-300" x-show="sections.length && !busy">
           <template x-for="sec in sections" :key="sec.index">
-            <li class="py-3 flex flex-row flex-wrap items-center justify-between gap-3">
+            <li class="py-3 flex flex-row flex-wrap items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <strong x-text="sec.title"></strong>
-                <p class="text-sm text-base-content/60" x-text="sec.preview"></p>
+                <p class="mt-1 text-sm text-base-content/60" x-show="!(sec.lines || []).length">这一段没有口播</p>
+                <ul class="mt-2 grid gap-1" x-show="(sec.lines || []).length">
+                  <template x-for="(line, i) in sec.lines" :key="sec.index + '-' + i">
+                    <li class="flex gap-3 text-sm">
+                      <span class="shrink-0 font-medium" x-text="line.speaker"></span>
+                      <span class="min-w-0 break-words" x-text="line.text"></span>
+                    </li>
+                  </template>
+                </ul>
               </div>
               <div class="ml-auto flex shrink-0 gap-4">
                 <label class="flex items-center gap-2">
@@ -194,8 +201,19 @@
         </div>
         <ul class="divide-y divide-base-300">
           <template x-for="sec in sections" :key="sec.index">
-            <li class="py-3 flex flex-row flex-wrap items-center justify-between gap-3">
-              <strong class="min-w-0 flex-1" x-text="sec.title"></strong>
+            <li class="py-3 flex flex-row flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <strong x-text="sec.title"></strong>
+                <p class="mt-1 text-sm text-base-content/60" x-show="!(sec.lines || []).length">这一段没有口播</p>
+                <ul class="mt-2 grid gap-1" x-show="(sec.lines || []).length">
+                  <template x-for="(line, i) in sec.lines" :key="sec.index + '-' + i">
+                    <li class="flex gap-3 text-sm">
+                      <span class="shrink-0 font-medium" x-text="line.speaker"></span>
+                      <span class="min-w-0 break-words" x-text="line.text"></span>
+                    </li>
+                  </template>
+                </ul>
+              </div>
               <span class="shrink-0" x-text="sec.mode === 'shot' ? '生成分镜' : '只配音'"></span>
             </li>
           </template>
@@ -759,7 +777,7 @@
               mode: sec.mode,
               title: sec.title,
               start: sec.start,
-            })),
+            })), // lines 只供两页核对，不作为可改后回传的脚本
           };
           try {
             const data = await callStudio("createJob", body, () => fetch("/api/jobs", {

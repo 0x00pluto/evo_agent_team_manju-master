@@ -277,6 +277,10 @@ class JobManager:
     def get(self, job_id: str) -> Job | None:
         return self._jobs.get(job_id)
 
+    def is_busy(self) -> bool:
+        with self._lock:
+            return self._busy
+
     def create(self, script: str, selections: list[dict[str, Any]]) -> Job:
         script = script.strip()
         if len(script) < 20:

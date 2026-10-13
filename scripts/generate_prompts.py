@@ -12,7 +12,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.generate_episode import generate_episode, render_shot, upsert_shot_markdown  # noqa: E402
+from src.generate_episode import (  # noqa: E402
+    generate_episode,
+    render_shot,
+    resolve_scene_slot,
+    upsert_shot_markdown,
+)
 from src.prompt_fill import build_prompt  # noqa: E402
 
 
@@ -68,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"episode 中没有镜头: {args.only_shot}", file=sys.stderr)
             return 2
         if args.dry_run:
-            print(build_prompt("shot_libtv.md", {"shot_id": match["id"], "duration_hint": match.get("duration_hint", ""), "shot_type": match.get("shot_type", ""), "camera": match.get("camera", ""), "protagonist": match.get("protagonist", ""), "action": match.get("action", ""), "dialogue": "", "sfx": "", "lighting": match.get("lighting", ""), "scene_ref": match.get("scene_ref", ""), "ref_images": match.get("ref_images", "")})[:400])
+            print(build_prompt("shot_libtv.md", {"shot_id": match["id"], "duration_hint": match.get("duration_hint", ""), "shot_type": match.get("shot_type", ""), "camera": match.get("camera", ""), "protagonist": match.get("protagonist", ""), "action": match.get("action", ""), "dialogue": "", "sfx": "", "lighting": match.get("lighting", ""), "scene_ref": match.get("scene_ref", ""), "ref_images": match.get("ref_images", ""), "scene_slot": resolve_scene_slot(match) or "…"})[:400])
             print("dry-run 完成（未调用 DeepSeek）")
             return 0
         idx = shots.index(match)
