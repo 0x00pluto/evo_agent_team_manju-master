@@ -11,7 +11,7 @@ cd /Users/peng.zhi/Documents/Codex/AI漫剧大师
 .venv/bin/python scripts/synthesize_episode_voiceover.py --help
 ```
 
-密钥：本仓 `.env` 或环境变量 `MINIMAX_API_KEY`（国际站 `https://api.minimax.io`）。合成在本仓完成。
+密钥：在 https://platform.minimax.io/console/access 申请，写入本仓 `.env` 或环境变量 `MINIMAX_API_KEY`。合成走国际站 `https://api.minimax.io`。
 
 ## 参数
 
