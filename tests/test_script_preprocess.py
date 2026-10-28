@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
@@ -145,4 +147,70 @@ class PreprocessTests(unittest.TestCase):
 
         sections = prepare_script(WELL_FORMED, split_with="model", chat_fn=chat)[1]
         self.assertEqual(calls["n"], 1)
+        self.assertEqual([row["title"] for row in sections], ["0-20秒·钩子", "20-40秒·旁白"])
+
+    def test_model_path_keeps_fail_and_inner_reason(self) -> None:
+        def chat(_messages: list) -> str:
+            return "这不是 JSON"
+
+        with patch("src.script_preprocess.sys.stderr", StringIO()):
+            with self.assertRaises(ValueError) as ctx:
+                prepare_script(WELL_FORMED, split_with="model", chat_fn=chat)
+        msg = str(ctx.exception)
+        self.assertIn("没能把脚本整理成分段", msg)
+        self.assertIn("模型没有返回 JSON", msg)
+
+    def test_broken_json_keeps_parser_and_model_text(self) -> None:
+        raw = '{"text": "他说"你好""}'
+
+        def chat(_messages: list) -> str:
+            return raw
+
+        stderr = StringIO()
+        with patch("src.script_preprocess.sys.stderr", stderr):
+            with self.assertRaises(ValueError) as ctx:
+                prepare_script(WELL_FORMED, split_with="model", chat_fn=chat)
+        msg = str(ctx.exception)
+        self.assertIn("没能把脚本整理成分段", msg)
+        self.assertIn("返回的内容不是合法 JSON", msg)
+        self.assertIn("Expecting", msg)
+        self.assertIn("他说", msg)
+        self.assertIn(raw, stderr.getvalue())
+
+    def test_retries_when_first_json_is_broken(self) -> None:
+        calls = {"n": 0}
+
+        def chat(messages: list) -> str:
+            calls["n"] += 1
+            self.assertNotIn("上次输出", messages[1]["content"])
+            self.assertIn("【0-20秒·钩子】", messages[1]["content"])
+            if calls["n"] == 1:
+                return '{"text": "他说"你好""}'
+            return json.dumps(
+                {
+                    "preamble": "",
+                    "sections": [
+                        {
+                            "title": "0-20秒·钩子",
+                            "lines": [
+                                {
+                                    "speaker": "企业老板",
+                                    "text": "入驻产业园以后，除了厂房，园区还能提供什么？",
+                                }
+                            ],
+                        },
+                        {
+                            "title": "20-40秒·旁白",
+                            "lines": [
+                                {"speaker": "", "text": "东湖高新集团深耕园区运营三十多年。"}
+                            ],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            )
+
+        with patch("src.script_preprocess.sys.stderr", StringIO()):
+            sections = prepare_script(WELL_FORMED, split_with="model", chat_fn=chat)[1]
+        self.assertEqual(calls["n"], 2)
         self.assertEqual([row["title"] for row in sections], ["0-20秒·钩子", "20-40秒·旁白"])

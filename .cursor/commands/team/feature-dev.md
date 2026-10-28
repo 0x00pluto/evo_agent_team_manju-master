@@ -2,7 +2,7 @@
 
 ## Profile
 - Author: Vibecoding Team Template
-- Version: 1.5.1（S2 必须 `--dangerously-skip-permissions` + stream-json 后台外呼与心跳；进度目录按会话抗碰撞；S1 须编译带取证档的主路径矩阵再外呼；本仓无库表，无 DDL 门闩）
+- Version: 1.5.2（S1 写文件前须输出本功能 Directory Tree；S2 必须 `--dangerously-skip-permissions` + stream-json 后台外呼与心跳；进度目录按会话抗碰撞；S1 须编译带取证档的主路径矩阵再外呼；本仓无库表，无 DDL 门闩）
 - Language: Chinese
 - Description: 人已确认 PRD（S0）后，**本人**按仓规实现 + 单测，再经外置 Claude Code Validator 门禁，最后回写 PRD。S2 测的是 S1 编译的**主路径矩阵**（按取证档），不是 PRD 全文穷尽。终点为 /team:prd-accept；**禁止发版、禁止打 tag**。
 
@@ -100,11 +100,23 @@ S0（人，本流程外）→ 人启动 /team:feature-dev
 ## S1 — 开发（本人执行）
 
 1. 读 `$PRD_PATH` 中本 `$RELEASE` 目标与验收标准；按 `docs/doc_index.md`（若有）打开相关契约/workflow。
-2. **先按「开发角色发现」Read** 相关命令文件当规范，再由**本角色自己**改码与写单测；不要另开一个开发会话。
-3. 实现落在仓规目录；接口/契约变更同步文档并登记索引（若仓有 `docs/doc_index.md`）。
-4. 跑通 `.venv/bin/python -m unittest discover -s tests -q`。必须绿。
-5. 输出本轮 **变更摘要**（给 S2）：改了哪些路径、关键行为、如何探活。
-6. 编译 **S2 取证矩阵**（强制；细则只跟下表）：从本 `$RELEASE` 用户故事验收要点、「可验收结果」、成功标准抽出主路径；每条必须有 ID、断言、档（`UI-see` / `UI-click` / `HTTP` / `HTTP-optional`）、必做动作、禁止冒充。外呼前检查矩阵非空且每条有档。**不要**让 Validator 自己发明清单或自定证据门槛。S2 测的是这张矩阵的主路径，不是 PRD 全文穷尽。
+2. **先按「开发角色发现」Read** 相关命令文件当规范；不要另开一个开发会话。
+3. **Directory Tree 门闩（强制）**：在执行任何文件编写之前，先在对话中输出本轮 S1 涉及的 Directory Tree，并简述每个文件的职责。只列本轮会**新建或修改**的路径（含测试、须同步的文档），不展开整仓；每行标明新建或修改。**树未输出不得改码**。S2 打回重做时若路径变化，先更新树再改。示例形状：
+
+```text
+src/
+├── studio/server.py           # 修改：本机操作台路由
+└── studio/static/index.html   # 修改：对应页面
+scripts/
+└── run_studio.py              # 修改：CLI 入口
+tests/
+└── studio/test_server.py      # 新建：对应单测
+```
+
+4. 由**本角色自己**按上树改码与写单测；实现落在仓规目录；接口/契约变更同步文档并登记索引（若仓有 `docs/doc_index.md`）。
+5. 跑通 `.venv/bin/python -m unittest discover -s tests -q`。必须绿。
+6. 输出本轮 **变更摘要**（给 S2）：改了哪些路径、关键行为、如何探活。
+7. 编译 **S2 取证矩阵**（强制；细则只跟下表）：从本 `$RELEASE` 用户故事验收要点、「可验收结果」、成功标准抽出主路径；每条必须有 ID、断言、档（`UI-see` / `UI-click` / `HTTP` / `HTTP-optional`）、必做动作、禁止冒充。外呼前检查矩阵非空且每条有档。**不要**让 Validator 自己发明清单或自定证据门槛。S2 测的是这张矩阵的主路径，不是 PRD 全文穷尽。
 
 ### S2 取证档（内嵌，禁止降档冒充）
 

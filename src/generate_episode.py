@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
-from src.deepseek_client import chat
+from src.dex_chat import chat
 from src.prompt_fill import build_prompt
 
 ChatFn = Callable[..., str]
@@ -27,7 +27,7 @@ def _write(path: Path, body: str) -> None:
 
 
 def render_shot(sh: dict[str, Any], *, chat_fn: ChatFn = chat) -> str:
-    """调用 DeepSeek 写出单镜 LibTV 块（含 ```text 正文）。"""
+    """调用对话写出单镜 LibTV 块（含 ```text 正文）。"""
     dialogue = sh.get("dialogue")
     if isinstance(dialogue, list):
         dialogue_text = dialogue_block(dialogue)
@@ -146,7 +146,7 @@ def generate_episode(
     title = episode.get("title", "episode")
     readme = (
         f"# {title}\n\n"
-        "本目录由 `scripts/generate_prompts.py` 经 **DeepSeek** 生成。\n"
+        "本目录由 `scripts/generate_prompts.py` 经 **Dex Buddy** 生成。\n"
         "复制顺序：角色三视图 → 面部特写 → 场景贴图 → LibTV 分镜。\n"
         "LibTV：9:16 · 全能参考 · 时长见各镜建议秒数。\n"
     )

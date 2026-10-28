@@ -1,6 +1,6 @@
 # Prompt template modules
 
-可替换提示词骨架。生成脚本把本集 `episode.yaml` 事实 + 模块注入 DeepSeek，由 DeepSeek 写出可复制正文。
+可替换提示词骨架。生成脚本把本集 `episode.yaml` 事实 + 模块注入对话模型，写出可复制正文。
 
 ## Current style pointer
 

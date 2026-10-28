@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from typing import Any, Callable
 
-from src.deepseek_client import chat
+from src.dex_chat import chat
 from src.prompt_fill import read_template
 from src.studio.compile_episode import (
     bracket_title,
@@ -117,8 +118,7 @@ def load_prompt() -> str:
 
 
 def _standard_chat(messages: list[dict[str, str]]) -> str:
-    # 整理分段只核对原文，不需要长思维链。
-    return chat(messages, thinking=False)
+    return chat(messages, response_format={"type": "json_object"}, max_tokens=8192)
 
 
 def _ask(script: str, chat_fn: ChatFn) -> tuple[str, list[dict[str, Any]]]:
@@ -128,7 +128,17 @@ def _ask(script: str, chat_fn: ChatFn) -> tuple[str, list[dict[str, Any]]]:
             {"role": "user", "content": script},
         ]
     )
-    return _proposal(extract_json(raw))
+    try:
+        return _proposal(extract_json(raw))
+    except (ValueError, json.JSONDecodeError):
+        print(raw, file=sys.stderr)
+        raise
+
+
+def _fail(detail: BaseException | None) -> None:
+    if detail is None:
+        raise ValueError(FAIL)
+    raise ValueError(f"{FAIL}：{detail}") from detail
 
 
 def preprocess_script(script: str, *, chat_fn: ChatFn | None = None) -> str:
@@ -137,21 +147,25 @@ def preprocess_script(script: str, *, chat_fn: ChatFn | None = None) -> str:
     ask = chat_fn or _standard_chat
     saw_content = False
     last_runtime: BaseException | None = None
+    last_detail: BaseException | None = None
     for _ in range(2):
         try:
             preamble, proposed = _ask(cleaned, ask)
         except (RuntimeError, OSError) as exc:
             last_runtime = exc
             continue
-        except (ValueError, json.JSONDecodeError):
+        except (ValueError, json.JSONDecodeError) as exc:
             saw_content = True
+            last_detail = exc
             continue
         saw_content = True
         if not _lines_in_source(script, proposed):
+            last_detail = ValueError("台词必须是原稿原句")
             continue
         rendered = render_standard_script(preamble, proposed)
         if _rendered_usable(rendered, parse_sections(rendered)):
             return rendered
+        last_detail = ValueError("分段结果不可用")
     if not saw_content and last_runtime is not None:
         raise last_runtime
-    raise ValueError(FAIL)
+    _fail(last_detail)

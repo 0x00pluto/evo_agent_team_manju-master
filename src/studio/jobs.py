@@ -35,6 +35,7 @@ class Job:
     theme: str = ""
     title: str = ""
     error: str = ""
+    code: str = ""
     voice_error: str = ""
     instruction: str = ""
     created_at: float = field(default_factory=time.time)
@@ -50,6 +51,7 @@ class Job:
             "theme": self.theme,
             "title": self.title,
             "error": self.error,
+            "code": self.code,
             "voice_error": self.voice_error,
             "instruction": self.instruction,
             "created_at": self.created_at,
@@ -342,6 +344,8 @@ class JobManager:
         except Exception as exc:  # noqa: BLE001
             job.status = "error"
             job.error = str(exc)
+            code = getattr(exc, "code", None)
+            job.code = code.strip() if isinstance(code, str) and code.strip() else ""
             job.touch()
         finally:
             with self._lock:

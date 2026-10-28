@@ -1,6 +1,6 @@
-# 脚本 → LibTV 可复制提示词（DeepSeek 生成）
+# 脚本 → LibTV 可复制提示词（Dex Buddy 对话生成）
 
-输入本集事实 YAML，按可替换模板模块调用 DeepSeek，产出可复制到即梦 / ChatGPT / LibTV 的提示词包。Cursor/Grok **不**撰写提示词成品正文。
+输入本集事实 YAML，按可替换模板模块调用 Dex Buddy 对话，产出可复制到即梦 / ChatGPT / LibTV 的提示词包。Cursor/Grok **不**撰写提示词成品正文。
 
 ## 入口
 
@@ -21,7 +21,7 @@ uv pip install -r requirements.txt
 
 ## 日常步骤
 
-1. **配 Key**：复制 `.env.example` 为 `.env`，填写 `DEEPSEEK_API_KEY`（申请：https://platform.deepseek.com/api_keys ；文档：https://api-docs.deepseek.com/zh-cn/）。
+1. **配 Key**：复制 `.env.example` 为 `.env`，填写 `DEX_BUDDY_API_KEY`（在 https://www.dexbuddy.app 创建 `dbh_sk_` 用户 Key。不要放进插件设置，也不要打进 zip）。
 2. **安装依赖**（本机手动）：`uv pip install -r requirements.txt`
 3. **确认风格指针**：`src/prompt_templates/manifest.md` 中 `style_id`（默认 `cinematic-photoreal-short-drama` 电影级写实仿真人短剧）。
 4. **准备或改本集事实**：`assets/episodes/hanyangzao-hook-cta.yaml`（或同目录 `.json`；未装 PyYAML 时请用 `.json`）（只含钩子 + 结尾 CTA）。
@@ -58,10 +58,10 @@ uv pip install -r requirements.txt
 
 | 现象 | 处理 |
 |---|---|
-| 缺少 DEEPSEEK_API_KEY | 检查 `.env`；进程环境优先于文件 |
-| 未安装 openai / PyYAML | `uv pip install -r requirements.txt` |
+| 缺少 DEX_BUDDY_API_KEY | 检查 `.env`；进程环境优先于文件；Key 不要放进插件设置 |
+| 未安装 PyYAML | `uv pip install -r requirements.txt` |
 | 想换画风 | 新增 `src/prompt_templates/style/<id>.md`，改 `manifest.md` 的 `style_id` 后重跑 |
-| dry-run 正常、真跑空 content | 查 DeepSeek 配额 / 模型名 `DEEPSEEK_MODEL` |
+| dry-run 正常、真跑空 content | 查 Dex Buddy 积分 / 对话渠道是否可用 |
 
 ## 测试
 

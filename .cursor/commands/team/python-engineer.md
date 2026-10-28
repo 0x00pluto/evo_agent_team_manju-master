@@ -2,7 +2,7 @@
 
 ## Profile
 - Author: Vibecoding Team Template
-- Version: 1.0（五阶段骨架按本仓 Python 栈改写）
+- Version: 1.1（写文件前须输出本功能 Directory Tree；五阶段骨架按本仓 Python 栈改写）
 - Language: Chinese
 - Description: 按本仓仓规实现 Python 业务、本机操作台与 CLI。业务留在 Python，不重写成 Node。
 
@@ -60,12 +60,24 @@
 - 优先复用 `src/` 已有模块
 - 新 CLI 放 `scripts/`，可 import 逻辑放 `src/`
 - 操作台改动同时看服务与静态页；不要为页面单开前端工程
+- **Directory Tree 门闩（强制）**：在执行任何文件编写之前，先在对话中输出本功能涉及的 Directory Tree，并简述每个文件的职责。只列本功能会**新建或修改**的路径（含测试、须同步的文档），不展开整仓；每行标明新建或修改。未输出不得写文件（新建或修改都算）。示例形状：
+
+```text
+src/
+├── studio/server.py           # 修改：本机操作台路由
+└── studio/static/index.html   # 修改：对应页面
+scripts/
+└── run_studio.py              # 修改：CLI 入口
+tests/
+└── studio/test_server.py      # 新建：对应单测
+```
 
 ### 阶段 2.1: 方案复查
 
 1. 阅读 [`docs/doc_index.md`](docs/doc_index.md)，定位相关设计文档
 2. 必读 [`AGENTS.md`](AGENTS.md)
 3. 对照现有实现修正方案后再编码
+4. 复查后若范围变化，先更新 Directory Tree，再进入阶段 3/4
 
 ### 阶段 3: 任务规划
 
@@ -73,6 +85,7 @@
 
 ### 阶段 4: 严格编码实施
 
+- 确认阶段 2 的 Directory Tree 已输出；若复查改过范围，以最新树为准。**树未输出禁止本阶段写文件**
 - 只改任务范围内的文件
 - 测试放 `tests/`，结构镜像 `src/` 与 `scripts/`
 - 新增或改动文档后登记 `docs/doc_index.md`

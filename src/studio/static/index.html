@@ -481,6 +481,13 @@
       });
     }
 
+    function isEntitlementBlock(err) {
+      const code = err && typeof err === "object" ? err.code : "";
+      if (code === "UNAUTHORIZED" || code === "NOT_ENTITLED" || code === "INSUFFICIENT_CREDITS") return true;
+      const msg = err && err.message ? String(err.message) : String(err || "");
+      return msg === "未登录" || msg === "尚未买断该插件" || msg === "积分不足";
+    }
+
     async function callStudio(method, params, viaHttp) {
       const call = hostCall();
       if (call) return call("manjuStudioService", method, [params || {}]);
@@ -703,6 +710,8 @@
         async loadScript() {
           if (this.busy || !this.canLoad) return;
           const request = Object.assign({}, this.loadBody(), { split_with: this.splitWith });
+          const previousSections = this.sections;
+          const previousScript = this.loadedScript;
           this.sections = [];
           this.loadedScript = "";
           this.error = "";
@@ -727,9 +736,17 @@
             this.sections = rows;
             this.loadedScript = text;
           } catch (err) {
-            this.sections = [];
-            this.loadedScript = "";
-            this.error = err && err.message ? err.message : "加载不到脚本";
+            if (isEntitlementBlock(err) && request.split_with === "model") {
+              this.sections = previousSections;
+              this.loadedScript = previousScript;
+              this.error = "加载不到脚本";
+            } else {
+              this.sections = [];
+              this.loadedScript = "";
+              this.error = isEntitlementBlock(err)
+                ? "加载不到脚本"
+                : (err && err.message ? err.message : "加载不到脚本");
+            }
           } finally {
             this.busy = false;
             this.statusText = "";
@@ -789,7 +806,9 @@
           } catch (err) {
             this.busy = false;
             this.statusText = "";
-            this.error = err && err.message ? err.message : "没有生成";
+            this.error = isEntitlementBlock(err)
+              ? "没有生成"
+              : (err && err.message ? err.message : "没有生成");
           }
         },
         async poll(id) {
@@ -806,7 +825,9 @@
             this.live = this.statusText;
             if (job.status === "error") {
               this.busy = false;
-              this.error = job.error || "失败";
+              this.error = isEntitlementBlock({ message: job.error, code: job.code })
+                ? "失败"
+                : (job.error || "失败");
               return;
             }
             if (job.status === "done") {

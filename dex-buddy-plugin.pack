@@ -5,3 +5,4 @@ icon.svg
 requirements.txt
 src/
 assets/
+lib/

@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, str(REPO))
 
-from src.env_load import load_dotenv, require_deepseek_api_key
+from src.env_load import load_dotenv, require_dex_buddy_api_key
 from src.generate_episode import generate_episode
 from src.prompt_fill import (
     build_prompt,
@@ -26,28 +26,32 @@ from src.prompt_fill import (
 
 class EnvLoadTests(unittest.TestCase):
     def test_missing_key_mentions_example(self) -> None:
-        old = os.environ.pop("DEEPSEEK_API_KEY", None)
+        old = os.environ.pop("DEX_BUDDY_API_KEY", None)
+        old_url = os.environ.pop("DEX_BUDDY_MODELS_URL", None)
         try:
             with patch("src.env_load.load_dotenv", return_value=None):
                 with self.assertRaises(RuntimeError) as ctx:
-                    require_deepseek_api_key()
+                    require_dex_buddy_api_key()
             msg = str(ctx.exception)
             self.assertIn(".env.example", msg)
-            self.assertIn("platform.deepseek.com", msg)
+            self.assertIn("dexbuddy.app", msg)
+            self.assertIn("不要放进插件设置", msg)
         finally:
             if old is not None:
-                os.environ["DEEPSEEK_API_KEY"] = old
+                os.environ["DEX_BUDDY_API_KEY"] = old
+            if old_url is not None:
+                os.environ["DEX_BUDDY_MODELS_URL"] = old_url
 
     def test_dotenv_does_not_override_process_env(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             env_path = Path(tmp) / ".env"
             env_path.write_text(
-                "DEEPSEEK_API_KEY=from-file\nFOO_ONLY=1\n", encoding="utf-8"
+                "DEX_BUDDY_API_KEY=from-file\nFOO_ONLY=1\n", encoding="utf-8"
             )
-            os.environ["DEEPSEEK_API_KEY"] = "from-process"
+            os.environ["DEX_BUDDY_API_KEY"] = "from-process"
             os.environ.pop("FOO_ONLY", None)
             load_dotenv(env_path)
-            self.assertEqual(os.environ["DEEPSEEK_API_KEY"], "from-process")
+            self.assertEqual(os.environ["DEX_BUDDY_API_KEY"], "from-process")
             self.assertEqual(os.environ.get("FOO_ONLY"), "1")
             os.environ.pop("FOO_ONLY", None)
 
@@ -185,6 +189,9 @@ class GenerateDryTests(unittest.TestCase):
             self.assertTrue((out / "01-角色-a.md").is_file())
             self.assertTrue((out / "02-场景.md").is_file())
             self.assertTrue((out / "03-分镜.md").is_file())
+            readme = (out / "00-使用说明.md").read_text(encoding="utf-8")
+            self.assertIn("Dex Buddy", readme)
+            self.assertNotIn("DeepSeek", readme)
             self.assertGreaterEqual(len(calls), 4)
             self.assertTrue(all(p.exists() for p in paths))
 

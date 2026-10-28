@@ -7,7 +7,7 @@ import json
 import re
 from typing import Any, Callable
 
-from src.deepseek_client import chat
+from src.dex_chat import chat
 
 ChatFn = Callable[..., str]
 
@@ -64,16 +64,31 @@ def strip_image_lines(script: str) -> str:
     return "\n".join(kept)
 
 
+def _model_snippet(text: str, pos: int, *, radius: int = 80) -> str:
+    start = max(0, pos - radius)
+    end = min(len(text), pos + radius)
+    chunk = text[start:end]
+    if start:
+        chunk = "…" + chunk
+    if end < len(text):
+        chunk = chunk + "…"
+    return f"{chunk}（共 {len(text)} 字）"
+
+
 def extract_json(text: str) -> dict[str, Any]:
     raw = text.strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
     start = raw.find("{")
-    end = raw.rfind("}")
-    if start < 0 or end <= start:
+    if start < 0:
         raise ValueError("模型没有返回 JSON")
-    data = json.loads(raw[start : end + 1])
+    body = raw[start:]
+    try:
+        data, _ = json.JSONDecoder().raw_decode(body)
+    except json.JSONDecodeError as exc:
+        snippet = _model_snippet(body, exc.pos)
+        raise ValueError(f"返回的内容不是合法 JSON（{exc}）。模型原文：{snippet}") from exc
     if not isinstance(data, dict):
         raise ValueError("JSON 必须是对象")
     return data
@@ -770,19 +785,24 @@ def _creative_prompt(locked: dict[str, Any]) -> str:
     )
 
 
+def _creative_chat(messages: list[dict[str, str]]) -> str:
+    return chat(messages, response_format={"type": "json_object"}, max_tokens=8192)
+
+
 def compile_bundle(
     script: str,
     selections: list[dict[str, Any]],
     *,
-    chat_fn: ChatFn = chat,
+    chat_fn: ChatFn | None = None,
 ) -> dict[str, Any]:
     script = script.strip()
     if len(script) < 20:
         raise ValueError("脚本太短")
     locked = build_locked(script, selections)
     creative: dict[str, Any] = {}
+    ask = chat_fn or _creative_chat
     if locked["shots"]:
-        raw = chat_fn(
+        raw = ask(
             [
                 {"role": "system", "content": _SYSTEM},
                 {"role": "user", "content": _creative_prompt(locked)},

@@ -15,7 +15,7 @@ import unittest
 import zipfile
 from datetime import datetime
 from http.client import HTTPConnection
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,7 +37,7 @@ from src.script_preprocess import preprocess_script  # noqa: E402
 from src.generate_episode import render_shot  # noqa: E402
 from src.env_load import apply_plugin_settings, data_root, load_dotenv, plugin_root  # noqa: E402
 from src.episode_voiceover import load_voice  # noqa: E402
-from src.studio.hub_worker import StudioSession  # noqa: E402
+from src.studio.hub_worker import StudioSession, serve_stdio  # noqa: E402
 from src.studio.jobs import Job, JobManager, stamp_slug, write_facts  # noqa: E402
 from src.studio.server import (  # noqa: E402
     download_zip,
@@ -266,6 +266,20 @@ class CompileTests(unittest.TestCase):
         data = extract_json('```json\n{"slug":"a-b"}\n```')
         self.assertEqual(data["slug"], "a-b")
 
+    def test_extract_json_ignores_trailing_text(self) -> None:
+        data = extract_json('{"slug":"a-b"} 谢谢')
+        self.assertEqual(data["slug"], "a-b")
+
+    def test_extract_json_invalid_keeps_parser_and_snippet(self) -> None:
+        raw = '{"text": "他说"你好""}'
+        with self.assertRaises(ValueError) as ctx:
+            extract_json(raw)
+        msg = str(ctx.exception)
+        self.assertIn("合法 JSON", msg)
+        self.assertIn("Expecting", msg)
+        self.assertIn("他说", msg)
+        self.assertIn(f"共 {len(raw)} 字", msg)
+
     def test_validate_normalizes_speakers_and_ids(self) -> None:
         out = validate_bundle(_bundle(), SCRIPT)
         self.assertEqual(out["slug"], "demo-park")
@@ -416,6 +430,36 @@ class SectionTests(unittest.TestCase):
         self.assertNotIn("可选面部特写", refs)
         self.assertNotIn("钩子引入", refs)
         self.assertNotIn("场景贴图", refs)
+
+    def test_compile_bundle_asks_for_json_object(self) -> None:
+        captured: list = []
+
+        def fake_chat(messages, *, response_format=None, max_tokens=None):
+            captured.append({"response_format": response_format, "max_tokens": max_tokens})
+            return json.dumps(
+                {
+                    "slug": "four-demo",
+                    "title": "四段",
+                    "characters": [
+                        {"name": "企业老板", "appearance": "眼镜", "wardrobe": "浅蓝衬衫"}
+                    ],
+                    "scenes": [
+                        {"id": "scene-1", "space": "大堂"},
+                        {"id": "scene-2", "space": "休息区"},
+                    ],
+                    "shots": [{"id": "V01", "camera": "中景"}, {"id": "V02", "camera": "近景"}],
+                },
+                ensure_ascii=False,
+            )
+
+        selections = [
+            {"index": index, "mode": mode}
+            for index, mode in enumerate(["shot", "voice", "shot", "voice"])
+        ]
+        with patch("src.studio.compile_episode.chat", fake_chat):
+            compile_bundle(FOUR, selections)
+        self.assertEqual(captured[0]["response_format"], {"type": "json_object"})
+        self.assertEqual(captured[0]["max_tokens"], 8192)
 
     def test_bold_wrapped_headings_split_four_ways(self) -> None:
         sections = parse_sections(YANGTZE)
@@ -867,6 +911,9 @@ class ServerTests(unittest.TestCase):
             self.assertIn("manjuStudioService", page)
             self.assertIn("window.dex.call", page)
             self.assertIn("window.hub.call", page)
+            self.assertIn("isEntitlementBlock", page)
+            self.assertNotIn("请先买断", page)
+            self.assertNotIn("DEEPSEEK", page)
             body = json.dumps(
                 {
                     "instruction": "你看一下 https://fcnegd976pzo.feishu.cn/wiki/NWvKwCfy8ihL2ZkVCWScSrOznum",
@@ -921,6 +968,50 @@ class HubWorkerTests(unittest.TestCase):
                 self.assertEqual(zf.namelist(), ["01_owner.mp3", "02_advisor.mp3"])
             with self.assertRaises(ValueError):
                 read_voice(root, "demo-ep", "../01_owner.mp3")
+
+    def test_stdio_keeps_error_code(self) -> None:
+        class Boom(StudioSession):
+            def dispatch(self, method, params):
+                err = RuntimeError("积分不足")
+                err.code = "INSUFFICIENT_CREDITS"
+                raise err
+
+        incoming = StringIO(json.dumps({"id": "1", "method": "preview", "params": {}}) + "\n")
+        outgoing = StringIO()
+        serve_stdio(Boom(REPO), stdin=incoming, stdout=outgoing)
+        row = json.loads(outgoing.getvalue().strip())
+        self.assertFalse(row["ok"])
+        self.assertEqual(row["code"], "INSUFFICIENT_CREDITS")
+        self.assertEqual(row["error"], "积分不足")
+
+    def test_failed_job_keeps_error_code(self) -> None:
+        def pipeline(root: Path, job: Job, script: str, selections: list) -> None:
+            err = RuntimeError("积分不足")
+            err.code = "INSUFFICIENT_CREDITS"
+            raise err
+
+        script = "【钩子】\n企业老板：我们缺的从来不是空间，是资源。\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = StudioSession(root, JobManager(root, pipeline=pipeline))
+            created = session.dispatch(
+                "createJob",
+                {
+                    "script_text": script,
+                    "filename": "hook.md",
+                    "sections": [{"index": 0, "mode": "shot"}],
+                },
+            )
+            row: dict | None = None
+            for _ in range(40):
+                row = session.dispatch("getJob", {"id": created["id"]})
+                if row["status"] == "error":
+                    break
+                time.sleep(0.05)
+            self.assertIsNotNone(row)
+            self.assertEqual(row["status"], "error")
+            self.assertEqual(row["code"], "INSUFFICIENT_CREDITS")
+            self.assertEqual(row["error"], "积分不足")
 
     def test_create_job_returns_before_pipeline_finishes(self) -> None:
         gate = threading.Event()
@@ -1054,28 +1145,33 @@ class HubWorkerTests(unittest.TestCase):
     def test_request_settings_are_not_replaced_by_dotenv(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / ".env").write_text("DEEPSEEK_API_KEY=from-file\n", encoding="utf-8")
+            (root / ".env").write_text("MINIMAX_API_KEY=from-file\n", encoding="utf-8")
             old_root = os.environ.get("MANJU_ROOT")
-            old_key = os.environ.get("DEEPSEEK_API_KEY")
+            old_key = os.environ.get("MINIMAX_API_KEY")
             os.environ["MANJU_ROOT"] = str(root)
-            os.environ["DEEPSEEK_API_KEY"] = "old"
+            os.environ["MINIMAX_API_KEY"] = "old"
             try:
                 apply_plugin_settings(
-                    {"DEEPSEEK_API_KEY": "from-settings", "NOT_A_SETTING": "nope"}
+                    {
+                        "MINIMAX_API_KEY": "from-settings",
+                        "DEEPSEEK_API_KEY": "ignored",
+                        "NOT_A_SETTING": "nope",
+                    }
                 )
-                self.assertEqual(os.environ["DEEPSEEK_API_KEY"], "from-settings")
+                self.assertEqual(os.environ["MINIMAX_API_KEY"], "from-settings")
+                self.assertNotEqual(os.environ.get("DEEPSEEK_API_KEY"), "ignored")
                 self.assertNotIn("NOT_A_SETTING", os.environ)
                 load_dotenv()
-                self.assertEqual(os.environ["DEEPSEEK_API_KEY"], "from-settings")
+                self.assertEqual(os.environ["MINIMAX_API_KEY"], "from-settings")
             finally:
                 if old_root is None:
                     os.environ.pop("MANJU_ROOT", None)
                 else:
                     os.environ["MANJU_ROOT"] = old_root
                 if old_key is None:
-                    os.environ.pop("DEEPSEEK_API_KEY", None)
+                    os.environ.pop("MINIMAX_API_KEY", None)
                 else:
-                    os.environ["DEEPSEEK_API_KEY"] = old_key
+                    os.environ["MINIMAX_API_KEY"] = old_key
 
     def test_installed_facts_stay_out_of_the_code_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1120,6 +1216,24 @@ class HubWorkerTests(unittest.TestCase):
                 else:
                     os.environ["MANJU_DATA_ROOT"] = old
 
+    def test_plugin_pack_ships_sdk_without_prompt_keys(self) -> None:
+        manifest = json.loads((REPO / "plugin.manifest.json").read_text(encoding="utf-8"))
+        schema = manifest["configSchema"]
+        self.assertEqual(manifest["id"], "app-dexbuddy-manju-studio")
+        self.assertNotIn("DEEPSEEK_API_KEY", schema)
+        self.assertNotIn("DEEPSEEK_BASE_URL", schema)
+        self.assertNotIn("DEEPSEEK_MODEL", schema)
+        self.assertNotIn("DEX_BUDDY_API_KEY", schema)
+        self.assertIn("FEISHU_APP_ID", schema)
+        self.assertIn("FEISHU_APP_SECRET", schema)
+        self.assertIn("MINIMAX_API_KEY", schema)
+        pack = (REPO / "dex-buddy-plugin.pack").read_text(encoding="utf-8")
+        self.assertIn("lib/", pack)
+        js = (REPO / "lib" / "dex-buddy-sdk.js").read_text(encoding="utf-8")
+        py = (REPO / "lib" / "dex_buddy_sdk.py").read_text(encoding="utf-8")
+        self.assertIn("SDK_VERSION = '1.0.0'", js)
+        self.assertIn('__version__ = "1.0.0"', py)
+
     def test_resolve_worker_uses_host_python(self) -> None:
         proc = subprocess.run(
             ["node", "-e", NODE_RESOLVE],
@@ -1135,7 +1249,43 @@ NODE_RESOLVE = r"""
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const { resolveWorker, workerEnv, prepareDataRoot } = require("./index.js");
+const { resolveWorker, workerEnv, prepareDataRoot, settingValues, needsEntitlement } = require("./index.js");
+const { childEnv, SDK_VERSION } = require("./lib/dex-buddy-sdk");
+if (SDK_VERSION !== "1.0.0") {
+  throw new Error("sdk version should be 1.0.0: " + SDK_VERSION);
+}
+if (needsEntitlement("preview", { split_with: "model" }) !== true) {
+  throw new Error("model preview should require entitlement");
+}
+if (needsEntitlement("preview", { split_with: "program" }) !== false) {
+  throw new Error("title preview should skip entitlement");
+}
+if (needsEntitlement("preview", {}) !== false) {
+  throw new Error("default preview should skip entitlement");
+}
+if (needsEntitlement("createJob", {}) !== true) {
+  throw new Error("createJob should require entitlement");
+}
+if (needsEntitlement("getJob", {}) !== false) {
+  throw new Error("getJob should skip entitlement");
+}
+if (needsEntitlement("recent", {}) !== false) {
+  throw new Error("recent should skip entitlement");
+}
+if (needsEntitlement("generateVoice", {}) !== false) {
+  throw new Error("voice should skip entitlement");
+}
+const passed = settingValues({
+  DEEPSEEK_API_KEY: "x",
+  FEISHU_APP_ID: "a",
+  MINIMAX_API_KEY: "m",
+});
+if (passed.DEEPSEEK_API_KEY) {
+  throw new Error("deepseek should not pass through settings");
+}
+if (passed.FEISHU_APP_ID !== "a" || passed.MINIMAX_API_KEY !== "m") {
+  throw new Error("feishu and minimax should pass: " + JSON.stringify(passed));
+}
 const ready = resolveWorker({ python: "/opt/venv/bin/python" });
 if (ready.command !== "/opt/venv/bin/python" || ready.args.join(" ") !== "-m src.studio.hub_worker") {
   throw new Error("host python should run the module: " + JSON.stringify(ready));
@@ -1149,11 +1299,11 @@ if (!empty.error || empty.error.indexOf("运行环境还没准备好") < 0) {
   throw new Error("empty runtime should explain itself: " + JSON.stringify(empty));
 }
 const merged = workerEnv(
-  { DEEPSEEK_API_KEY: "", PATH: "/usr/bin" },
-  { DEEPSEEK_API_KEY: "from-settings" },
+  { FEISHU_APP_ID: "", PATH: "/usr/bin" },
+  { FEISHU_APP_ID: "from-settings" },
   "/plugin"
 );
-if (merged.DEEPSEEK_API_KEY !== "from-settings") {
+if (merged.FEISHU_APP_ID !== "from-settings") {
   throw new Error("settings should replace an empty key");
 }
 if (merged.MANJU_ROOT !== "/plugin" || merged.PYTHONUNBUFFERED !== "1") {
@@ -1161,6 +1311,9 @@ if (merged.MANJU_ROOT !== "/plugin" || merged.PYTHONUNBUFFERED !== "1") {
 }
 if (merged.MANJU_DATA_ROOT !== "/plugin") {
   throw new Error("data root should follow the code root until set");
+}
+if (!merged.PYTHONPATH || merged.PYTHONPATH.indexOf(path.join("/plugin", "lib")) < 0) {
+  throw new Error("PYTHONPATH should include lib: " + merged.PYTHONPATH);
 }
 const split = workerEnv({}, {}, "/code", "/data");
 if (split.MANJU_ROOT !== "/code" || split.MANJU_DATA_ROOT !== "/data") {
@@ -1185,6 +1338,17 @@ if (fallback !== repo) {
 if (!fs.existsSync(path.join(repo, "temp")) || !fs.existsSync(path.join(repo, "output"))) {
   throw new Error("fallback data root should contain temp and output");
 }
+childEnv({}, { DEX_BUDDY_API_KEY: "dbh_sk_secret", PATH: "/usr/bin" }).then((env) => {
+  if (env.DEX_BUDDY_API_KEY) {
+    throw new Error("childEnv should strip author key");
+  }
+  if (env.PATH !== "/usr/bin") {
+    throw new Error("childEnv should keep unrelated env");
+  }
+}).catch((err) => {
+  console.error(err && err.message ? err.message : err);
+  process.exit(1);
+});
 """
 
 

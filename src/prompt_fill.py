@@ -72,7 +72,7 @@ def fill(template: str, variables: dict[str, str]) -> str:
 
 
 def build_prompt(module_file: str, variables: dict[str, str], *, templates_dir: Path | None = None) -> str:
-    """组装发给 DeepSeek 的完整 user 提示（含风格/时长注入）。"""
+    """组装发给对话模型的完整 user 提示（含风格/时长注入）。"""
     root = templates_dir or default_templates_dir()
     base = load_style_and_duration(templates_dir=root)
     merged = {**base, **variables}

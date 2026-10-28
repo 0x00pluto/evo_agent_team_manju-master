@@ -159,7 +159,11 @@ def serve_stdio(
             result = session.dispatch(str(req.get("method") or ""), params if isinstance(params, dict) else {})
             write_message(outgoing, {"id": req_id, "ok": True, "result": result})
         except Exception as exc:  # noqa: BLE001 — 协议层把失败收成一行，进程继续听下一条
-            write_message(outgoing, {"id": req_id, "ok": False, "error": str(exc)})
+            failed: dict[str, Any] = {"id": req_id, "ok": False, "error": str(exc)}
+            code = getattr(exc, "code", None)
+            if isinstance(code, str) and code.strip():
+                failed["code"] = code.strip()
+            write_message(outgoing, failed)
 
 
 def main() -> int:

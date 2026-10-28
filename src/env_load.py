@@ -8,9 +8,6 @@ from pathlib import Path
 # 源码布局下的本仓根。冻结二进制不能用这个找 output / .env，见 plugin_root()。
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SETTING_KEYS = (
-    "DEEPSEEK_API_KEY",
-    "DEEPSEEK_BASE_URL",
-    "DEEPSEEK_MODEL",
     "FEISHU_APP_ID",
     "FEISHU_APP_SECRET",
     "MINIMAX_API_KEY",
@@ -70,15 +67,17 @@ def load_dotenv(path: Path | None = None) -> Path | None:
     return env_path
 
 
-def require_deepseek_api_key() -> str:
-    """返回 DEEPSEEK_API_KEY；缺失时抛出带配置指引的 RuntimeError。"""
+def require_dex_buddy_api_key() -> str:
+    """独立运行返回 DEX_BUDDY_API_KEY；工作台有代理地址时不要求作者 Key。"""
     load_dotenv()
-    key = (os.environ.get("DEEPSEEK_API_KEY") or "").strip()
+    if (os.environ.get("DEX_BUDDY_MODELS_URL") or "").strip():
+        return ""
+    key = (os.environ.get("DEX_BUDDY_API_KEY") or "").strip()
     if key:
         return key
     raise RuntimeError(
-        "缺少 DEEPSEEK_API_KEY。\n"
+        "缺少 DEX_BUDDY_API_KEY。\n"
         "1. 复制本仓 .env.example 为 .env\n"
-        "2. 在 https://platform.deepseek.com/api_keys 申请 key 并填入\n"
-        "3. 文档：https://api-docs.deepseek.com/zh-cn/"
+        "2. 在 https://www.dexbuddy.app 创建用户 Key（dbh_sk_ 开头）并填入\n"
+        "3. 不要放进插件设置，也不要打进 zip"
     )

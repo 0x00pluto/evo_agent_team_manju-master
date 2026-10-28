@@ -88,11 +88,10 @@ Python 用 **UV** 管理，虚拟环境在本仓 `.venv/`：
 
 | 变量 | 用途 |
 |---|---|
-| `DEEPSEEK_API_KEY` | 提示词生成（必填）；复制 `.env.example` 为 `.env` 填写；进程环境优先于文件 |
-| `DEEPSEEK_BASE_URL` | 默认 `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | 默认 `deepseek-flash`；可改为 `deepseek-v4-pro` |
+| `DEX_BUDDY_API_KEY` | 独立运行的对话（必填）；复制 `.env.example` 为 `.env` 填写；`dbh_sk_` 开头；进程环境优先于文件；不要放进插件设置 |
+| `DEX_GATEWAY_BASE_URL` | 可选；默认 `https://www.dexbuddy.app` |
 
-申请：https://platform.deepseek.com/api_keys ；文档：https://api-docs.deepseek.com/zh-cn/ 。生成流程见 [`docs/workflows/script-to-libtv-prompts.md`](./docs/workflows/script-to-libtv-prompts.md)。
+申请：https://www.dexbuddy.app 。生成流程见 [`docs/workflows/script-to-libtv-prompts.md`](./docs/workflows/script-to-libtv-prompts.md)。
 
 ## 能力声明
 

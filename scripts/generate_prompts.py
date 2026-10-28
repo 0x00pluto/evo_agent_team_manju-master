@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI：用 DeepSeek 根据模板模块生成本集可复制提示词。"""
+"""CLI：用 Dex Buddy 对话根据模板模块生成本集可复制提示词。"""
 
 from __future__ import annotations
 
@@ -43,14 +43,14 @@ def load_episode(path: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="用 DeepSeek 根据模板模块生成本集可复制提示词"
+        description="用 Dex Buddy 对话根据模板模块生成本集可复制提示词"
     )
     parser.add_argument("--episode", required=True, help="本集事实 YAML/JSON 路径")
     parser.add_argument("--out", required=True, help="输出目录（建议 output/<主题>/）")
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="只组装发给 DeepSeek 的提示并打印，不调用 API",
+        help="只组装发给对话模型的提示并打印，不调用 API",
     )
     parser.add_argument(
         "--only-shot",
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.dry_run:
             print(build_prompt("shot_libtv.md", {"shot_id": match["id"], "duration_hint": match.get("duration_hint", ""), "shot_type": match.get("shot_type", ""), "camera": match.get("camera", ""), "protagonist": match.get("protagonist", ""), "action": match.get("action", ""), "dialogue": "", "sfx": "", "lighting": match.get("lighting", ""), "scene_ref": match.get("scene_ref", ""), "ref_images": match.get("ref_images", ""), "scene_slot": resolve_scene_slot(match) or "…"})[:400])
-            print("dry-run 完成（未调用 DeepSeek）")
+            print("dry-run 完成（未调用对话）")
             return 0
         idx = shots.index(match)
         after_id = shots[idx - 1]["id"] if idx > 0 else None
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
             }
             print("=== character_sheet", ch["id"], "===")
             print(build_prompt("character_sheet.md", vars_common)[:800], "…\n")
-        print("dry-run 完成（未调用 DeepSeek）")
+        print("dry-run 完成（未调用对话）")
         return 0
 
     paths = generate_episode(episode, out_dir)

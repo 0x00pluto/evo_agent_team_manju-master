@@ -1,7 +1,7 @@
 {
-  "id": "manju-studio",
+  "id": "app-dexbuddy-manju-studio",
   "displayName": "漫剧操作台",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "ui",
   "description": "从飞书或脚本文本生成漫剧分镜提示词，并合成整集口播配音。",
   "category": "流量密码",
@@ -19,26 +19,6 @@
     }
   ],
   "configSchema": {
-    "DEEPSEEK_API_KEY": {
-      "type": "string",
-      "title": "DeepSeek 密钥",
-      "description": "用于写提示词。在 https://platform.deepseek.com/api_keys 申请。",
-      "default": "",
-      "secret": true,
-      "group": "提示词"
-    },
-    "DEEPSEEK_BASE_URL": {
-      "type": "string",
-      "title": "DeepSeek 接口地址",
-      "default": "https://api.deepseek.com",
-      "group": "提示词"
-    },
-    "DEEPSEEK_MODEL": {
-      "type": "string",
-      "title": "DeepSeek 模型",
-      "default": "deepseek-flash",
-      "group": "提示词"
-    },
     "FEISHU_APP_ID": {
       "type": "string",
       "title": "飞书 App ID",
